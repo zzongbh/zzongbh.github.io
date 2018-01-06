@@ -1,0 +1,195 @@
+<!DOCTYPE html><html lang="zh-cn"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no"><meta name="format-detection" content="telephone=no"><meta name="format-detection" content="email=no"><meta name="description" content="技术猿 攻城狮"><meta name="keywords" content="ocserv, vpn,"><title>转载【从Nicira到VMware NSX 网络虚拟化平台的简单探讨】 - 高脚猪</title><link rel="stylesheet" href="/css/main_style.min.css"><link rel="icon" href="/images/favicon.ico"></head><body><input id="navi" type="checkbox"><ul class="main-navication"><li><a href="/"><span>Home</span></a></li></ul><div class="wrapper" id="wrap"><div class="post-header"><label class="navi-button light" for="navi">MENU</label><img class="background" src="http://callfiles.ueibo.com/hexo-theme-laughing/post_background.jpg"><div class="post-title"><h1 class="title">转载【从Nicira到VMware NSX 网络虚拟化平台的简单探讨】</h1><ul class="meta"><li><i class="icon icon-author"></i>公子青</li><li><i class="icon icon-clock"></i>18 Minutes</li><li><i class="icon icon-calendar"></i>January 2, 2018</li></ul></div></div><div class="article-content" style="max-width:800px"><blockquote>
+<p>斯人产出太太太低，恰逢碰巧遇到不错文章，所以转载过来。本文出自<a href="http://www.sdnlab.com/14241.html" target="_blank" rel="noopener">SDNLAB SDN实战团分享（四）</a>.以下为全文转载</p>
+</blockquote>
+<p>大家好，我叫范恂毅，现在在阿尔卡特朗讯企业通信（ALE）担任售前。我首先说明一句，我的公司，我们的业务，与VMware NSX没有直接关系。我研究NSX技术，纯粹是兴趣——我最早接触SDN时，得知了SDN的理念和Openflow协议都来自一个叫Nicira的公司，这个公司还是Open vSwitch的开发者。那时候，Nicira已经被VMware收购了。我个人认为Nicira技术才是最纯粹最原生态的SDN和网络虚拟化。因此，VMware收购Nicira一年后，推出NSX解决方案后，我就一直在研究它。群里绝大部分都是比我年长的前辈，如有说的不对的地方，欢迎指正。如有重要的问题需要讨论，也可以打断我。</p>
+<p>收购是2012年4月的事，成交金额是12.6亿美金，思科出价8亿美金，功败垂成，只得使用内部孵化公司研发ACI解决方案，来与之对抗。经过一年的产品和方案整合，NSX解决方案在2013年夏天正式发布，并投放市场。</p>
+<p>Nicira公司的Openflow、OVS技术，我们不过多探讨，今天时间也有限，我们主要说明一下NSX的架构、功能和核心组件。那么下面是正式的内容了。</p>
+<p>以前的大二层技术，一般是在物理网络底层使用IS-IS路由技术，再在此基础之上，实现数据中心网络的二层扩展，如公有的Trill、SPB技术和Cisco私有的OTV、Fabricpath技术；前沿一些的网络虚拟化技术，使用了VXLAN、NVGRE等协议，突破VLAN和MAC的限制，将数据中心的大二层网络扩展的更大。而使用VMware NSX，则更进一步——我们可以对网络提供已对计算和存储实现的相同虚拟化功能。就像服务器虚拟化可以通过编程方式创建、删除和还原基于软件的虚拟机以及拍摄其快照一样，NSX网络虚拟化也对基于软件的虚拟网络实现这些同样的功能。这是一种具有彻底革命性的架构，不仅使数据中心管理人员能够大大提高系统的将敏捷性、可维护性、可扩展性，而且还能大大简化底层物理网络的运营模式。NSX能够部署在任何IP网络上，包括所有的传统网络模型以及任何供应商提供的新一代体系结构，无需对底层网络进行重构。不难看出，VMware NSX的核心思想，就是将VMware多年致力发展的服务器虚拟化技术，移植到了网络架构中（如下图所示）。</p>
+<p><img src="/images/2.1.jpg" alt=""></p>
+<p>实现服务器虚拟化后，软件抽象层（服务器虚拟化管理程序，hypervisor）可在软件中重现人们所熟悉的x86物理服务器属性，例如 CPU、RAM、磁盘、网卡，从而可通过编程方式以任意组合来组装这些属性，只需短短数秒，即可生成一台独一无二的虚拟机。</p>
+<p>实现网络虚拟化后，与hypervisor类似的“网络虚拟化管理程序”功能可在软件中重现二到七层的整套网络服务，例如交换、路由、访问控制、防火墙、QoS、负载均衡。因此，与服务器虚拟化的理念相同，我们可通过编程方式以任意组合来组合这些服务，只需短短数秒，即可生成独一无二的隔离式虚拟网络。</p>
+<p>除此之外，基于NSX的网络虚拟化方案还能提供更多的优势。例如，就像虚拟机独立于底层x86平台并允许将物理服务器视为计算容量池一样，虚拟网络也独立于底层网络硬件平台并允许将物理网络视为可以按需使用和调整用途的传输容量池。与传统体系结构不同，NSX可以通过编程方式调配、更改、存储、删除和还原虚拟网络，而无需重新配置底层物理硬件或拓扑。这种革命性的组网方式能够让企业从已熟悉的服务器虚拟化解决方案获得的能力和优势相匹配。</p>
+<p>由于使用了NSX解决方案后的底层网络架构产生了质的变化，以NSX网络平台搭建的数据中心最终达到的效果就是，无论系统规模多大，无论物理服务器、虚拟机有多少台，无论底层网络多么复杂，无论多站点数据中心跨越多少地域，在NSX网络的帮助下，对于IT管理人员和使用者来说，这些运行在多站点数据中心复杂网络之上的成千上万台的虚拟机，好像是运行在一台物理服务器里一样。</p>
+<p>NSX无需关心底层物理网络，使用自己创建的逻辑网络即可，那么是否一定要部署在VMware的虚拟化环境中？答案也是否定的。NSX可以部署在VMware vSphare、KVM、Xen等诸多虚拟化环境，也可以集成在Openstack环境之上。主流虚拟化平台中，目前只有微软Hyper-V是不支持NSX的。</p>
+<p>NSX网络虚拟化分vSphare环境下的NSX（NSX-V）和多虚拟化环境下的NSX（NSX-MH），是不同的软件，最新版本分别是6.2.0和4.2.4，这点在部署之前就需要了解。其中，NSX-MH更像原生态的Nicira NVP平台，主要在KVM和Xen之上，基于OVS实现网络虚拟化。</p>
+<p>但是，无论使用NSX-V还是NSX-MH，其基本逻辑架构都是相同的，不同点仅为数据平面中的一些组件（如NSX-V中，虚拟交换机为vSphare分布式交换机，而NSX-MH中，虚拟交换机为OVS）。下图为NSX网络虚拟化架构的基本示意图。它建立在底层物理网络之上，在逻辑网络中，分数据平面、控制平面、管理平面。其中数据平面中，又分分布式服务（包括逻辑交换机、逻辑路由器、逻辑防火墙）和NSX网关服务。控制平面的主要组件是NSX控制器。而管理平面的主要组件是NSX Manager。(如下图所示）。</p>
+<p><img src="/images/2.2.jpg" alt=""></p>
+<p>有了这些组件，NSX可以提供的功能服务如下：</p>
+<ul>
+<li>交换：在网络中的任何位置实现大二层交换网络的扩展，而无需考虑底层物理网络。</li>
+<li>路由：IP子网之间的路由，可以在逻辑网络中完成，不需要有流量出到物理路由器或三层交换机。这种路由是在虚拟机的Hypervisor层执行的，CPU消耗很小，可为虚拟网络架构内的路由表提供最佳路径。</li>
+<li>防火墙：有了这个功能，安全防护就可以在Hypervisor层以及虚拟网卡层面执行。这将能够以可扩展的方式实施防火墙规则，而不会在物理防火墙设备上造成瓶颈。防火墙分布在Hypervisor层之上，只产生极少的CPU开销，并且能够线速执行。</li>
+<li>逻辑负载平衡：支持四到七层的负载平衡，并且能够执行SSL端接。</li>
+<li>VPN服务：可实现二、三层VPN服务。</li>
+</ul>
+<p>NSX-V的架构，其实非常简单，因为它的逻辑层次非常清晰——管理平面、控制平面、数据平面，每个平面中的组件也不多。但是，有些人认为它又是非常复杂的，因为深入研究数据平面之后，人们会发现尽管其功能实现看似非常简单，但是其转发原理、转发行为还是非常复杂的。插一句，刚才是整体介绍，现在进入NSX-V的介绍。下是NSX-V的架构图。</p>
+<p><img src="/images/2.3.jpg" alt=""></p>
+<p>其中，控制平面的主要组件是NSX Controller。而管理平面的主要组件是NSX Manager。NSX-V和NSX-MH主要的不同，在于数据平面的组件。</p>
+<p>NSX-V的数据平面，分分布式服务（包括逻辑交换机、逻辑路由器、逻辑防火墙）和NSX Edge网关服务，分分布式服务主要用于终端（虚拟机）之间的东西向流量通讯服务，而NSX Edge网关服务主要用于逻辑网络和物理网络之间的南北向流量的通讯服务和一些分布式服务无法实现的功能，如负载均衡。其底层虚拟化环境，为ESXi Hypervisor，也就是纯vSphare环境，不允许其他任何虚拟化平台介入，而NSX-MH的底层虚拟化环境可以是除了Hyper-V以外的任何Hypervisor。NSX-V的分布式服务，都是搭建在vSphare分布式交换机之上的，而在NSX-MH中则搭建在OVS之上。NSX Edge网关，同样也主要是利用ESXi主机中的虚拟机进行搭建，而在NSX-MH中，这个组件被功能稍有缺失的NSX二层/三层网关替代了。</p>
+<p>根据NSX-V的逻辑架构，我们很容易看出，通过逻辑网络的这些组件提供的网络抽象与分布式服务，它与物理网络实现了完全的解耦。虚拟机之间的通讯，可以通过VXLAN的封装，完全在逻辑网络内部完成，与物理网络的底层架构已经没有任何关系了，只有虚拟机通过NSX Edge与外界进行通讯时，才会考虑与物理网络的路由和交换策略。</p>
+<p>NSX-V管理平面的组件，是NSX Manager，它是一种用于运维和管理的Cloud Management Platform（CMP）。在NSX-V环境下，NSX Manager是以虚拟设备的形式，以虚拟机的形式，安装在ESXi主机中。NSX Manager的功能主要在于配置逻辑交换机，并将虚拟机连接至逻辑交换机，之后，就可以在逻辑交换机之上进行配置分布式逻辑路由器、分布式防火墙等服务。此外，NSX Edge网关服务也是在NSX Manager的界面上配置的。NSX Manager提供了一个用于管理的配置界面（UI），作为NSX的API连接点，其绝大部分配置都可以在这个图形化的配置界面上进行，而不需要开发人员使用编程语言来完成。</p>
+<p>在NSX-V环境中，NSX Manager是需要与与vCenter连接并集成的，它们之间需要1：1的匹配关系，换句话说，如果我们在vSphare虚拟化平台中部署了两台vCenter，那么，我们就需要部署两个NSX Manager。NSX Manager通过注册到vCenter，在vSphere Web Client上提供了一个插件，进入这个插件的图标，我们就可以对NSX-V网络虚拟化平台进行部署和配置了。<br>NSX Manager的几个主要职责如下所述：</p>
+<ol>
+<li>配置NSX Controller集群。</li>
+<li>在ESXi主机的hypervisor之上安装vSphere Installation Bundles（VIBs），以开启VXLAN、分布式路由器、分布式防火墙功能，并与NSX Controller集群进行信令的信息交互。</li>
+<li>配置NSX Edge服务网关，以关联负载均衡、VPN、NAT等网络服务。为各种网络服务创建模板、快照等功能，实现快速和自动化部署逻辑网络的功能。为NSX Controller创建自签名证书，以允许ESXi主机加入NSX域，以增强NSX控制平面的安全性。</li>
+<li>提供网络流量的采集和监控功能。NSX Controller是控制平面的组件。它的职责是管理hypervisor之上的交换和路由模块。它同样是以虚拟机的形式，部署在ESXi主机之上。为了便于扩展和提高高可用性，NSX Controller一般建议配置为集群模式（VMware建议配置至少3个NSX Controller作为集群）。每一个NSX Controller建议使用至少4个vCPU和4GB的内存，必须部署在同一个vCenter里。在部署中，集群中的第一个节点设置的密码会同步到集群中的其他节点。</li>
+</ol>
+<p>NSX Controller作为控制平面，负责转发平面流量的集中式的策略控制。它能提供：</p>
+<ul>
+<li>向ESXi主机分发VXLAN和逻辑路由信息。</li>
+<li>建立NSX Controller集群，在集群内部进行工作流的分布。</li>
+<li>在物理网络中去除组播路由。客户无需提供组播IP地址，也无需提供支持PIM路由或IGMP Snooping的物理网络设备。</li>
+<li>在VXLAN网络环境中抑制ARP广播流量，减少二层网络的ARP广播泛洪。</li>
+</ul>
+<p>在NSX-V架构中，数据平面是基于VDS搭建的。VDS需要在每一个ESXi的hypervisor上启用，而每一个ESXi主机，都有一个用户空间和一个内核空间（如下图所示）。</p>
+<p><img src="/images/2.4.jpg" alt=""></p>
+<p>我们通过将VMware Installation Bundles（VIBs）安装到ESXi主机hypervisor的内核空间，以实现NSX-V的各种功能——分布式交换和路由、分布式防火墙和VXLAN的封装与解封装。</p>
+<p>而用户空间，则是用于与控制平面、管理平面提供通讯路径的组件；</p>
+<p>RabbitMQ消息队列用于vsfwd（RabbitMQ客户端）和以进程形式寄宿在NSX Manager之上的RabbitMQ服务器建立通讯连接。通过这个通讯连接，是NSX Manager将各种信息发送到ESXi主机：策略规则用于实现内核模块之上的分布式防火墙；Controller节点IP地址、私钥和主机证书用于主机与Controller之间的通道认证，以安全创建、删除分布式路由器实例。<br>User World Agent进程（netcpa），是ESXi Hypervisor与Controller集群建立的SSL通讯通道之上，再进行TCP连接。利用控制平面与ESXi Hypervisor的通道，NSX Controller可以将MAC地址表、ARP表和VTEP表填充之自己的表项中，以保持逻辑网络中的已建立的连接的快速通讯。</p>
+<p>以上是整体架构,我们接下来具体聊聊数据平面</p>
+<p>首先看看NSX交换和“虚拟到物理”的连接，同时，需要VXLAN到VLAN的桥接。</p>
+<p>在NSX网络虚拟化平台中，逻辑交换机将孤立的二层网络进行了彻底的整合，对用户而言，极大提升了灵活性和敏捷性。无论虚拟或物理的终端，都能便捷地连接到自己在数据中心中的逻辑子网，并建立一个与物理拓扑无关的、独立的链路连接。这一切优势，都在于物理网络（Underlay）和逻辑网络（Overlay）的解耦，实现了NSX网络虚拟化。</p>
+<p>下图就是物理网络和逻辑网络分离后的架构示意图。逻辑网络通过使用VXLAN Overlay，允许二层网络在不同的服务器机架中横向扩展（甚至可以跨越不同数据中心），这种扩展与底层的物理架构是完全独立的。</p>
+<p><img src="/images/2.5.jpg" alt=""></p>
+<p>VXLAN有了，它基于VLAN，可以对802.1Q协议的VLAN数量限制进行指数级的扩展（达到16777216个网段）。</p>
+<p>VXLAN则更进一步是将以太网报文封装在UDP传输层上的一种隧道转发模式。它定义了一个名为VTEP（VXLAN隧道终结点）的实体，用于VXLAN隧道两端的流量封装和解封装，在VMware NSX平台中，我们使用虚拟机kernel interface来处理VTEP。它添加了一个新的标签VNI（VXLAN标识符），用来取代VLAN标识VXLAN的网段，在VMware NSX平台中，VNI的号码是5000开始的。</p>
+<p>此外，在VMware NSX平台中，我们使用VETP代理工作机制，负责将VXLAN流量从本地子网传输到另一个子网。而传输区域（Transport Zone）则是VNI的可配置的边界。相同传输区域中的vSphere集群，使用了相同的VNI，一个传输区域可以包含不同vSphere集群中的ESXi主机，当然，一个vSphere集群也可以是不同传输区域的一部分。传输区域会告知主机或集群逻辑交换机被创建。</p>
+<p>在这里，我们简单阐述一下在VXLAN Overlay中，不同ESXi hosts的虚拟机之间建立二层连接的过程：</p>
+<ol>
+<li>虚拟机1发起一个去往同一逻辑子网的虚拟机2的帧请求。</li>
+<li>虚拟机1所在的ESXi主机定义了一个VTEP，在流量被发送到传输网络之前，对流量进行封装。</li>
+<li>传输网络只需要知道源目的ESXi主机的IP地址，就可以在两个地址之间建立VXLAN隧道。</li>
+<li>目的ESXi主机收到了VXLAN帧，对其进行解封装，并确认它所在的二层子网（利用VNI标识）。</li>
+<li>最终，这个帧被传递到虚拟机2。</li>
+</ol>
+<p>传输过程的示意图如下：</p>
+<p><img src="/images/2.7.jpg" alt=""></p>
+<p>以上是当不同ESXi主机的两个虚拟机需要直接通信时，VXLAN流量被源目ESXi主机的Hypervisor封装、解封装并最终相互通信的基本情况，这种情形还是比较简单和易于理解的。但是有时候，在三种情况下，VXLAN流量从一个虚拟机发起，需要被发送到同一个NSX逻辑交换机下挂的所有虚拟机：</p>
+<ol>
+<li>广播（Broadcast）</li>
+<li>不知道目的的单播（Unknown Unicast）</li>
+<li>组播（Multicast）</li>
+</ol>
+<p>我们通常把这种多目的的流量，叫做BUM（Broadcast, Unknown Unicast, Multicast）。在以上三种情形的任何一种情况下，源虚拟机发起的流量，都会被复制到统一逻辑网络中的远端的多个主机。NSX支持三种不同的复制方法，以支持其基于逻辑交换机的VXLAN流量的多目的通讯：</p>
+<ol>
+<li>组播（Multicast）</li>
+<li>单播（Unicast）</li>
+<li>混合（Hybrid）</li>
+</ol>
+<p>对于从虚拟网络物理网络的二层网络通讯，可能会有很多个场景。一些典型的场景如下所述：</p>
+<ol>
+<li>部署一个典型的多层应用模型——这一般是Web（前端）层、应用层、数据库层。我们往往在数据库部署时采用“多虚一”的技术，如Oracle RAC解决方案，这就需要使用多台物理服务器进行集群处理，将他们看成一台数据库服务器来使用，而这样的应用往往不会运行在虚拟化环境上，因为在这种情形下。它们无需“一虚多”当数据库服务器没有运行在虚拟化环境的时候，我们就需要建立一个同一子网中的应用层到数据库层的“虚拟到物理”的二层通讯。</li>
+<li>物理服务器向虚拟机的迁移——即使Physical to virtual（P2V）。由于服务器虚拟化蓬勃发展，大多数企业都希望将之前在物理服务器中部署的应用迁移到虚拟化环境，在迁移过程中，就可能需要在同一子网中的不同的物理和虚拟节点中实现“物理到虚拟”的二层通讯。</li>
+<li>将外部的物理设备作为默认网关——在这种情形下，一个物理的网络设备可能会被部署为默认网关，用于虚拟的工作流连接逻辑交换机。因此，一个二层的网关功能就需要建立，这同样是“虚拟到物理”的二层通讯。</li>
+<li>部署其他物理设备——如在数据中心不是独立于NSX虚拟网络的物理防火墙、物理负载均衡设备时，同样需要“虚拟到物理”的二层通讯。这也是实现NSX生态圈的重要手段。</li>
+</ol>
+<p>在NSX Manager中使用了简化的UI来配置逻辑路由器，非常便于进行配置和维护，在这里，我们使用动态路由协议对NSX逻辑路由进行发现和宣告的操作。控制平面仍然运行在NSX Controller集群中，而数据平面交给ESXi主机的Hypervisor来处理。换言之，在虚拟机内部我们就可以进行路由的各种操作，包括算法、邻居发现、路径选择、收敛等，而无需离开虚拟化环境，在物理网络平台中进行处理。有了NSX逻辑路由功能，我们举可以方便地在虚拟三层网络中，对路由选择最佳路径。此外，我们还更好地实现多租户环境，比如在虚拟网络中，不同的VNI中有相同的IP地址，我们就可以部署两个不同的分布式路由器实例，一个连接租户A，一个连接租户B，保证网络中不会引起任何冲突。</p>
+<p>NSX Manager首先配置了一个路由服务。在配置过程中，NSX Manager部署了一个管理逻辑路由的虚拟机，它是NSX Controller的一个组件，支持OSPF与BGP协议，此外，在之前章节中，我们为NSX Manager为ESXi配置了一个内核模块。在逻辑路由功能中，它的作用相当于机箱式交换机中指出三层路由功能的线卡，可以从NSX Controller集群中得到路由信息、接口信息，并负责转发平面的所有功能。</p>
+<p>逻辑路由连接不同的逻辑交换机，并与物理网络交互的典型部署模式的示意图。这样的部署有两个目的：</p>
+<ol>
+<li>连接属于分离的二层网络的终端（无论终端属于逻辑还是物理网络）</li>
+<li>连接分属于逻辑网络中的终端与属于外部物理三层网络的设备</li>
+</ol>
+<p>第一种情形，往往发生在数据中心内部，为东西向流量。而第二种情形，为南北向流量的通讯，将数据中心连接到外部物理网络（如WAN、Internet、等）。</p>
+<p>第一种状况，就是我们通常说的NSX分布式路基路由，而第二种，则是Edge路由，我们在NSX Edge网关上实现路由功能。</p>
+<p>逻辑架构图如下：</p>
+<p><img src="/images/2.8.jpg" alt=""></p>
+<p>分析了NSX分布式逻辑路由之后，我们分析一下这样的部署比起使用传统物理网络部署有什么优势。</p>
+<p>在传统物理网络中，对于同一个主机内的一个Web服务器与App服务器的通信，由于他们处在不同网段，需要三层交换机来处理它们之间的流量，因此，流量在出主机后需要经过ToR二层交换机去往核心交换机，再回到二层交换机并重新进入主机，需要4跳连接。当然，如果ToR交换机开启了三层功能，通信则只需要2跳。而在NSX环境中，由于我们直接在主机的hypervisor层面实现了三层功能，因此，Web服务器与App服务器是直连的，它们之间的通信连接是0跳，如下图所示。值得注意的是，无论NSX-V还是NSX-MH环境，就流量的跳数问题上，达成的效果都是一致的。今天没有时间深入分析了，里面技术细节其实非常多。</p>
+<p><img src="/images/2.9.jpg" alt=""></p>
+<p>对于不同主机之间的三层连接，NSX环境也可以将在传统物理网络中需要的4跳连接精简为2跳（如下图所示）。</p>
+<p><img src="/images/2.10.jpg" alt=""></p>
+<p>交换和路由简单介绍完了，我们进入NSX Edge。NSX Edge网关能实现哪些服务呢？我们看一张真实的配置界面截图：</p>
+<p><img src="/images/2.11.jpg" alt=""></p>
+<p>这里面所有写到的功能，Edge都是支持的。其中NAT分两种，Source NAT和Destination NAT。分别用做出外网，和内部信息发布的地址转换，或保护敏感数据。</p>
+<p>NSX Edge有两种部署负载均衡服务——单臂模式和在线模式。单臂模式又叫代理模式，专门使用一个NSX Edge部署在数据中心内部。</p>
+<p><img src="/images/2.12.jpg" alt=""></p>
+<p>下图为同一个主机内的虚拟机之间，使用传统模式和NSX单臂模式部署负载均衡的情况下，Web服务器与App服务器进行交互并对外提供服务的流量模型。在传统模式中，对于Web服务器与App服务器之间的东西向的三层流量，需要经过二层交换机、三层交换机、旁路模式部署的防火墙，再回到三层交换机、二层交换机、物理服务器主机，才能进行通讯，这个过程，需要6跳连接。在Web服务器与App服务器建立连接后，就可以对外提供Web服务了，外界访问Web服务器的南北向流量，需要先抵达核心交换机，绕到防火墙进行过滤（如只允许HTTP和HTTPS的流量）并返回核心交换机，这时候，需要再次绕到负载均衡服务器进行处理并返回核心交换机，然后才能通过二层交换机抵达主机并访问Web服务，这个过程一共有7跳连接，全部过程一共13跳。而在NSX环境中，同一个主机内的Web服务器与App服务器尽管处在不同网段，却可以在逻辑网络内部实现直接的连接（0跳），而对外提供服务时，外部访问流量通过核心三层交换机、二层交换机后去往NSX Edge，在这个NSX Edge串接在逻辑网络和物理网络之间，提供防火墙服务，之后返回二层交换机，进入主机就可以访问负载均衡Web服务了，由于单臂模式下，负载均衡和Web服务器之间是直连的（0跳），因此整个过程只有5跳连接。</p>
+<p><img src="/images/2.13.jpg" alt=""></p>
+<p>对于不同主机内的虚拟机的情形，与同主机内类似。如下图所示，使用传统模式实现应用负载均衡，依然是13跳连接，而在NSX环境，仅需要7跳，比同一主机的部署多2跳的原因在于，不同主机之间的逻辑网络流量，需要经由二层交换机再进入另一个主机。</p>
+<p><img src="/images/2.14.jpg" alt=""></p>
+<p>在线模式（传输模式）实现负载均衡的方法与单臂模式相反，是由集中化的NSX Edge来提供路由和负载均衡服务的模式其。在数据中心内部部署的部署拓扑图如下所示，我们可以看到，拓扑中利用了逻辑网络和物理网络之间的NSX Edge来部署负载均衡。</p>
+<p><img src="/images/2.15.jpg" alt=""></p>
+<p>我们同样讨论一下使用在线模式部署负载均衡时的流量模型。如下图所示，对于同一个主机内的虚拟机之间，在传统模式下，Web服务器以App服务器之间的流量交互过程依然是13跳。而在NSX环境中，在线模式和单臂模式都是5跳，这是因为，我们通过在物理网络与逻辑网络之间之间的NSX Edge之上同时启用了防火墙服务和负载均衡服务，没有在系统中增加任何多余的路径。</p>
+<p><img src="/images/2.16.jpg" alt=""></p>
+<p>同样，部署了在线模式的负载均衡后，不同主机之间的的Web服务器以App服务器之间的流量交互过程与单臂模式完全相同——将传统部署的13跳精简为7跳（如下图所示）。</p>
+<p><img src="/images/2.17.jpg" alt=""></p>
+<p>在线模式的优点是同样易于部署，并且允许服务器/虚拟机对于原始客户端的IP地址拥有完全的可视性。但是，从设计的角度上看，它通常需要强制将LB部署为服务器群的逻辑网段的默认网关，这意味着在这些网段只能使用集中式的路由（而不是分布式路由），因此它的部署方式并不是非常灵活。</p>
+<p>用NSX Edge进行二层VPN的部署，允许在两个不同的、分离的数据中心之间，进行二层连接，使得虚拟机可以实现在不同数据中心之间进行迁移，存储也可以跨越数据中心进行复制和备份。另外，这种方法还可以用于私有云与公有云之间的连接——很多企业希望数据中心有冗余，但是为了节省成本，会自建一个数据中心，并使用公有云作为数据中心的备份。</p>
+<p>三层VPN，主要用于远程接入的客户端连接数据中心资源。一般来说，远程办公员工使用SSL VPN连接到数据中心，访问数据中心服务；而远程office使用IPSec VPN连接数据中心。</p>
+<p>而使用SSL VPN连接到部署了三层VPN的NSX Edge的方式，被称作“SSL VPN-Plus”。</p>
+<p>VMware NSX是一个不仅是网络虚拟化平台，同样也是安全虚拟化平台。与部署网络模式类，它以软件的方式提供和部署2-7层的安全。在NSX网络虚拟化平台中，可以提供两种防火墙功能。一个是由NSX Edge提供的集中化的虚拟防火墙服务，它主要用来处理南北向流量；另一个就是基于微分段技术的分布式防火墙，主要用于处理东西向流量。在NSX网络虚拟化平台中，同时使用NSX Edge防火墙和分布式防火墙的逻辑拓扑架构如下图：</p>
+<p><img src="/images/2.18.jpg" alt=""></p>
+<p>与NSX分布式防火墙的工作息息相关的组件有三个。这里需要重点解释一下，因为在NSX网络虚拟化平台，在分布式逻辑交换机、分布式逻辑路由器处，我们将NSX Manager作为管理平面组件，NSX Controller作为控制平面组件，而在NSX分布式防火墙这里，管理平面和控制平面的组件则大不相同，这一点，我们之前已经简单提到，我们说过，分布式防火墙通过vsfwd服务进程，直接与NSX Manager通信。NSX分布式防火墙的管理平面和控制平面和数据平面的组件如下所述：</p>
+<ol>
+<li>vCenter Server：在NSX分布式防火墙的部署中，我们将vCenter作为其管理平面。我们通过vSphere Web Client创建分布式防火墙策略规则，之后，每一个vCenter中的集群、VDS port-group、逻辑交换机、虚拟机、vNIC、资源池等就都可以使用这些基于源和目的的策略规则。</li>
+<li>NSX Manager：在NSX分布式防火墙的部署中，我们将NSX Manager作为其控制平面。NSX Manager接收到vCenter Server的策略规则后，就会将它们贮存到本地的数据库，并将这些分布式防火墙策略规则同步推送到ESXi主机。一旦策略规则发生变动，在系统内都是时刻同步发布和推送的。NSX Manager还可以直接通过CMP的REST API接收防护墙策略规则，这些CMP可能是由第三方的安全平台提供，如PaloAlto。</li>
+<li>ESXi主机：在NSX分布式防火墙的部署中，我们将ESXi主机作为其数据平面。ESXi主机从NSX Manager那里接收到了其推送来的分布式防火墙策略，随即将规则进行翻译，运用到期内核空间以便实时执行策略。这样，所有的虚拟机流量都会在ESXi主机处进行检查和执行。例如，处于不同ESXi主机的虚拟机-1和虚拟机-2需要通讯时，策略在虚拟机-1的流量需要离开ESX-1时被防火墙规则进行处理，并在流量需要进入ESXi-2时同样进行处理，然后，安全的流量才会抵达虚拟机2。</li>
+</ol>
+<p>NSX网络虚拟化平台中的分布式防火墙能实现的功能有：</p>
+<ul>
+<li>隔离（Isolation）：这是防火墙部署在企业或数据中心里需要实现的基本功能。它将不相关的网络完全隔离，进而保持各自的独立性，例如：开发、测试与生产网络。隔离是在虚拟化环境下实现多租户的必要条件。任何一个隔离的、独立的虚拟网络，都可以在数据中心内部的任何位置处理工作流的，因为在网络虚拟化环境中，已实现了和地层物理网络无关的虚拟网络，只要虚拟网络是连通的，就无需关心虚拟机在数据中心内所处的物理位置。任何独立的虚拟网络都可以包含分布在数据中心任意位置的工作负载，同一个虚拟网络中的工作负载可以位于相同或不同的虚拟化管理程序上。此外，多个独立虚拟网络中的工作负载可以位于同一个虚拟化管理程序中。</li>
+</ul>
+<p>其实，在通过VXLAN等Overlay技术搭建的虚拟网络中，不同网段之间本来就是默认隔离的。但是当不同网段需要相互通信时，就需要调用分布式防火墙的安全策略来隔离一些敏感流量了。在隔离时，我们无需引入任何物理的子网、VLAN信息、ACL和防火墙规则，所有安全策略全部由虚拟化环境内部完成。</p>
+<ul>
+<li>分段（Segmentation）：与隔离相关，但是运用在多层虚拟网络中的安全策略，是分段。它实现了相关安全组之间进行安全区域的划分，并根据安全策略进行通信。在NSX网络虚拟化环境中，我们将分段技术叫做微分段（Micro-Segmenting），因为通过NSX分布式防火墙，我们可以将流量分成多个细颗粒度的流量，为每个细微的网络分段提供安全保护。</li>
+<li>高级服务：NSX网络虚拟化平台，在虚拟网络之中，提供了从二层到四层的防火墙功能，且实现的微分段。但是在一些环境中，应用需要更高级别的网络安全策略来进行保护，在这种情况下，用户可以利用NSX平台，在其之上集成第三方安全厂商的四到七层安全服务，提供更全面更充分的基于应用的安全解决方案。NSX将第三方网络安全服务集成在虚拟网络中，通过逻辑的通道，发布至vNIC接口，使得在vNIC后端的应用可以使用这些服务。</li>
+</ul>
+<p>NSX的一些主要安全合作伙伴包括PaloAlto、Intel（已收购McAfee）、CheckPoint、Symantec、TrendMicro等。企业的安全团队，可以针对不同应用，选择VMware生态圈内的不同的安全厂商的解决方案。</p>
+<p>讨论完了分布式防火墙的实现，我们与讨论分布式路由、负载均衡的最后一样，分析一下分布式防火墙的流量模型。对于传统防火墙部署，处在相同主机里的Web服务器于App服务器之间的三层通信，需要经过6跳才能连接，这是因为流量进出旁路模式连接核心交换机的物理防火墙的过程需要2跳连接，这样一来，就传统三层的4跳连接（之前已阐述）多出2跳。而与分布式路由相同，由于分布式防火墙功能也是工作在主机的hypervisor之上的，因此在NSX环境下，相同主机里的Web服务器于App服务器之间的三层通信也是直连（0跳）的，如下图所示。</p>
+<p><img src="/images/2.19.jpg" alt=""></p>
+<p>对于不同主机之间的三层通信，与分布式路由章节的阐述类似，我们同样可以将连接精简为2跳（如下图所示）。</p>
+<p><img src="/images/2.20.jpg" alt=""></p>
+<p>以上，就是NSX-V的内容，我们下面快速说一下NSX-MH，它在整体架构上和NSX-V完全一致，只是数据平面的组件和实现方式不同。下面这张图是NSX-MH内部架构的逻辑示意图。</p>
+<p><img src="/images/2.21.jpg" alt=""></p>
+<p>对比使用VMware使用自己的vSphare作为Hypervisor的解决方案（就是NSX-V，其架构、工作原理等，我们在之前几章已经详细阐述了），NSX-MH架构与其在逻辑层次的划分上完全一致——管理平面、控制平面、数据平面。而管理平面和控制平面中使用的组件也完全相同，分别是NSX Manager和NSX Controller（其中NSX Controller可以使用集群式的部署方式），他们最大的不同仅来自数据平面。在NSX-V中，服务器虚拟化软件是vSphare，安装了vSphare的物理服务器被称为ESXi主机，能实现多个虚拟机运行在其之上，而这些虚拟机可以通过vSphare分布式交换机互相连接起来，而NSX网络虚拟化的其他组件和功能（主要是逻辑交换机、分布式逻辑路由器、分布式防火墙，但不包括NSX Edge提供的功能），都是在vSphare分布式交换机之上搭建的。而NSX-MH中，底层虚拟化平台可能是vSphare，也可能是Xen或KVM，在他们之上安装的虚拟机是通过最早由Nicira公司设计并开发的OVS（Open vSwitch）进行连接的，NSX网络虚拟化的逻辑交换机、分布式逻辑路由器、分布式防火墙等组件和功能是建立在OVS的基础之上的。2014年5月22日，OVS宣布支持运行在Hyper-V平台之上。尽管NSX现在尚未支持Hyper-V，但是NSX-MH架构下的最重要的组件OVS宣布这一支持，为未来NSX支持基于Hyper-V的虚拟化平台铺平了道路。此外，NSX-V中的NSX Edge，在NSX-MH中使用二层/三层网关进行了替代，实现类似的功能。</p>
+<p>NSX-MH解决方案的整体拓扑架构如下，我们可以看到，与NSX-V相比，最大的区别就是NSX-MH中，服务器虚拟化可能会由Xen或KVM中的一种进行搭建，或两种混合搭建。有时ESXi也会出现在架构中，用于部署服务器虚拟化，这样一来，数据中心中的虚拟化软件可能同时有Xen、KVM和ESXi。而逻辑交换机建立在OVS（其中对于ESXi使用的OVS，在NSX环境中有个专门的名称，叫NSX vSwitch，NVS）之上，而不是vSphare分布式交换机。</p>
+<p>顺便说一点，NSX-MH内，控制平面和OVS交互的方式，正是Nicira研发的Openflow。</p>
+<p><img src="/images/2.22.jpg" alt=""></p>
+<p>最后，简单说一下NSX和别的厂家的集成。安全以及说过了，用第三方安全厂家，实现5-7层安全，NSX防火墙只能做2-4层。负载均衡的话，F5除了能部署单臂模式、在线模式，还能实现分布式的部署。这个功能很牛，而且能用到F5所有高级功能。</p>
+<p>另外一个重要的集成就是和OpenStack，NSX-V与OpenStack的集成，主要是使用VMware Integrated OpenStack（VIO）的发行版软件来进行的。IT管理员就可以在现有vSphere中简单、快速、便捷地部署OpenStack 服务。VMware与OpenStack的集成，在网络上可以通过NSX-V或VDS来部署Neutron，当然使用NSX功能比VDS的部署多的多。如果是NSX-MH需要与OpenStack集成，则不需要VIO软件，直接使用NSX Plugin来部署Neutron。</p>
+<h2 id="Q-amp-A"><a href="#Q-amp-A" class="headerlink" title="Q&amp;A"></a>Q&amp;A</h2><blockquote>
+<p><strong>Q1：防火墙分布在hypervisor层，那还能用线速转发来形容么？</strong><br>A1：可以，这个用到的是基于微分段的分布式防火墙技术。</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q2：有空也讲讲micro segment吧？</strong><br>A2：micro segment 就是微分段，如果详细探讨，今天一晚都是讲不完的。。。其主要作用是实现分布式的、细颗粒度的安全防护。</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q3：Ssl端接是什么概念呢？</strong><br>A3:大约就是负载均衡服务，多用于企业内部应用对外发布，使用https，端口是443，这是SSL端接技术。</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q4：WEB 和APP的gateway在vrouter上吗？</strong><br>A4:所有的GW都在分布式逻辑路由器上，和物理网络已经没有关系了。</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q5：然后vrouter有到物理网络的路由，right？通过edge router</strong><br>A5:对的，但是东西向流量就不需要有去往物理网络了</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q6：也就是说网关也是分布式的？</strong><br>A6:网关不是分布式,当然，我们可以部署多个网关，做负载分担。</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q7：实际上gateway会落在某几个host的hypervisor的vrouter上是吧？</strong><br>A7:每个host有，是同步的，硬要说落在了哪个host上，那就是NSX Controller所在的host。这个是集群式部署的，会有至少3台。</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p><strong>Q8：Nicira在开发Ovs 和 nsx 他们怎么定位？</strong><br>A8:ovs用于多虚拟化环境下的NSX，就是NSX-MH。之间的隧道协议主要是STT而是不VXLAN。</p>
+</blockquote>
+</div><div class="article-meta" style="max-width:800px"><div class="tags"><i class="icon icon-tag"></i><ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/Nicira/">Nicira</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/VMware-NSX/">VMware NSX</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/sdn/">sdn</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/全文转载/">全文转载</a><span class="tag-list-count">2</span></li></ul></div></div><div class="article-comment" style="max-width:800px"><div class="ds-thread" id="ds-thread" data-thread-key="cjc395k5h0000zbpvvlauiaa1" data-title="转载【从Nicira到VMware NSX 网络虚拟化平台的简单探讨】" data-url="https://zzongbh.github.io/5061ae88/" site-name="ueibo"></div><script>var siteName = document.getElementById('ds-thread').getAttribute('site-name');
+var duoshuoQuery = {short_name: siteName};
+(function() {
+  var ds = document.createElement('script');
+  ds.type = 'text/javascript';ds.async = true;
+  ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+  ds.charset = 'UTF-8';
+  (document.getElementsByTagName('head')[0] 
+  || document.getElementsByTagName('body')[0]).appendChild(ds);
+})();</script></div><ul class="navication"><li class="home"><a href="/"><i class="icon icon-home"></i></a></li><li><a href="/55317a93/"><i class="icon icon-arror-left"></i></a></li><li><a href="/c99fb8e8/"><i class="icon icon-arror-right"></i></a></li></ul><div class="page-footer"><div class="top"><ul class="social"><li><a href="zzongbh#gmail.com" title="email" target="_blank"><i class="icon icon-email"></i></a></li></ul></div><div class="bottom"><p class="copyright">© 2018 高脚猪<br><small>POWER BY <a href="https://hexo.io" target="_blank">HEXO</a></small><small>, THEME BY <a href="https://github.com/BoizZ/hexo-theme-laughing" target="_blank">LAUGHING</a></small></p></div></div></div><script>var wrap = document.getElementById('wrap');
+window.onload = function () {
+  wrap.className += ' done';
+}</script></body></html>

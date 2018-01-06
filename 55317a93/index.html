@@ -1,0 +1,120 @@
+<!DOCTYPE html><html lang="zh-cn"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no"><meta name="format-detection" content="telephone=no"><meta name="format-detection" content="email=no"><meta name="description" content="技术猿 攻城狮"><meta name="keywords" content="ocserv, vpn,"><title>转载【从Nicira NVP 到 VMware NSX分享】 - 高脚猪</title><link rel="stylesheet" href="/css/main_style.min.css"><link rel="icon" href="/images/favicon.ico"></head><body><input id="navi" type="checkbox"><ul class="main-navication"><li><a href="/"><span>Home</span></a></li></ul><div class="wrapper" id="wrap"><div class="post-header"><label class="navi-button light" for="navi">MENU</label><img class="background" src="http://callfiles.ueibo.com/hexo-theme-laughing/post_background.jpg"><div class="post-title"><h1 class="title">转载【从Nicira NVP 到 VMware NSX分享】</h1><ul class="meta"><li><i class="icon icon-author"></i>公子青</li><li><i class="icon icon-clock"></i>16 Minutes</li><li><i class="icon icon-calendar"></i>January 4, 2018</li></ul></div></div><div class="article-content" style="max-width:800px"><blockquote>
+<p>原文叫“VMware NSX技术分享”sdnlab文章，现全文转载过来。出自<a href="http://www.sdnlab.com/17577.html" target="_blank" rel="noopener">SSDN实战团分享（二十九）：VMware NSX技术分享</a>，与<a href="https://zzongbh.github.io/5061ae88/">【从Nicira到VMware NSX 网络虚拟化平台的简单探讨】</a>搭配快速了解VMware NSX，以下为全文转载</p>
+</blockquote>
+<p>分享嘉宾</p>
+<p>-————————–</p>
+<p>分享介绍：</p>
+<p>张晨：目前就读于北京邮电大学FNL实验室，网络与交换国家重点实验室。</p>
+<p>目前主要研究方向：软件定义网络，网络虚拟化，云数据中心网络。目前任职于Brocade。</p>
+<p>-————————–</p>
+<p>分享前的话：本次分享中涉及的一些观点，仅代表个人，无法代表Brocade。</p>
+<p>Vmware是虚拟化技术的先驱者，其强大的计算虚拟化产品已经深入了各行各业的日常使用中。当然，如果没有网络虚拟化的支撑，计算的虚拟化是根本玩不转的。</p>
+<p>Vmware最早的虚拟化产品是Vmware Workstation，在PC OS的基础上提供了桌面级的虚拟机，其网络环境比较简单，基本的需求就是虚拟机之间要能够通信，另外虚拟机也可能需要和外界通信。VMnet作为Vmware Workstation中的虚拟交换机，提供了3种网络模式：host-only/nat/bridge。Host-only模式就是只允许虚拟机间在同一网段中进行通信，不允许虚拟机与外界通信，IP地址由Vmware环境来分配；Nat在host-only的基础上，增加了虚拟机与外界通信的功能，虚拟机的网关会指向Vmware环境中同网段的某一IP上，由这一IP进行地NAPT转换实现与外界的通信；Bridge模式中，虚拟机网卡将与宿主机物理网卡处于同一物理局域网中，虚拟机的IP地址由外界的DHCP服务器来分配，而物理网卡则需要开启混杂模式作为Vmnet与外界交换机互联的Trunk口。</p>
+<p>随着服务器虚拟化在数据中心的普及，Vmware推出了旗舰产品Vsphere来提供对物理服务器直接进行计算虚拟化的能力。数据中心的网络环境是比个人PC中的网络复杂得多的，数据中心是承载业务的生产环境，对于网络安全的要求是头等大事，而且数据中心内的流量类型更为多样，不同的流量对于QoS的要求自然也不尽相同。上述需求使得Vsphere中集成的虚拟交换机必须支持更为复杂、灵活的网络策略。同时，由于虚拟机迁移这一刚性的需求，虚拟交换机上的网络策略还要能够自动地跟随虚拟机进行迁移。另外，为了简化数据中心网络的运维，必须要支持对于海量虚拟交换机的统一管理。VDS（Virtual Distributed Switch，虚拟分布式交换机）是Vmware给出的答案（原来叫做DVS），VDS中的网络虚拟化即可以理解为对于VLAN的集中式、精细化管理。</p>
+<p>可以看到，根植于Vmware强大的计算虚拟化基因，Vmnet/VDS都是基于x86平台进行的软件实现，这与Cisco这类传统的网络设备厂商基于芯片和网络协议来解决问题的视角是截然不同的。不过，Vmnet和VDS都是Vmware在服务器内部用来自给自足的，对Cisco并没有任何的影响，为了巩固双方在各自领域的地位，Cisco和Vmware还联合研发了虚拟交换机Cisco Nexus 1000v。由于Cisco在网络方面的专业性，N1000v比VDS支持更为高级的网络功能，Cisco卖N1000v的license给Vmware的客户赚利润，Vmware的客户则能够享受到更好的网络服务，因此Cisco和Vmware长久以来都保持着不错的关系。</p>
+<p>随着云计算浪潮的来袭，数据中心网络发生了天翻地覆的变化。云计算即IT服务化，云中的IT资源要能够像水和电一样作为公共基础服务按需提供给企业进行使用，这对于网络的自动化运维能力提出了前所未有的挑战。另外，服务器间东西向流量的激增使得xSTP难堪大用，VLAN 4K的数量上限也难以支撑起公有云业务的发展。Cisco很早就看到了这一问题，从2010年左右便开始大力布局Nexus系列的硬件产品，包括做接入的N2K和N5K，以及做核心的N7K，在相关芯片和控制协议的研发上投入了大量的资源，已经为云数据中心网络的转型做足了准备。Cisco的网络虚拟化联姻Vmware的服务器虚拟化，似乎将成为云数据中心的标准打包方案，二者的未来看上去很美。</p>
+<p>然而，SDN的出现改变了这一切。SDN提供的集中式控制和可编程能力，使得它成为了数据中心网络自动化的首选。Nicira的NVP平台是最早的基于SDN的数据中心网络解决方案，NVP所选的技术架构当时让人眼前一亮，使用端到端的隧道技术构建虚拟化网络，SDN只负责网络边缘的控制，而不会对现有网络产生影响，是现有数据中心网络向SDN演进的最佳形态。Vmware看到了NVP在商业上具备的巨大价值，一旦将NVP集成到自己的虚拟化解决方案中，那么今后便有机会在网络虚拟化上与Cisco掰一掰手腕，从而开拓自己从未有机会触碰的市场。而Cisco同样敏感地意识到了NVP带来的挑战，这种纯软件的SDN解决方案对于N系列交换机在数据中心市场的精心布局将形成巨大的挑战，一旦Vmware收了NVP那么肯定要吃不少苦果子，但如果是自己拿到NVP那操作的空间可就大得多了——既可以选择温和地推进NVP，等到N系列赚的盆满钵满再迅速转身，通过NVP来占领数据中心的SDN市场，当然也可以内部消化掉NVP，坐等SDN自生自灭。于是争端一触即发，在2012年中旬，双方展开了对Nicira的收购大战。</p>
+<p>从最后的结果来看，Vmware以12.5亿美元收购了Nicira。Cisco当时的出价我们自然是无从获知的，不过笔者个人觉得是有可能要比Vmware的出价还要高一些的，但由于Cisco的收购动机可能“不够纯粹”，因此综合考虑Nicira最后选择了Vmware。Vmware收购Nicira后，基于NVP的原型推出了自己的SDN网络虚拟化平台NSX，高调地进军了数据中心网络市场，也宣告这放弃了与Cisco在网络领域的合作关系。当然，Cisco也不会坐以待毙，于2013年以8.64亿美元收购了SDN创业公司Insieme，同时发布了ACI（Application Centric Infrastructure，以应用为中心的基础设施）架构与产品，走上了以硬件为核心的SDN路线。目前，NSX与ACI俨然成为了SDDCN商业解决方案的死对头，未来鹿死谁手不好说，但是从公司自身的宣传以及媒体的造势起哄来看，在这块市场上两个巨头是非要争个高低了（最近有缓和的趋势）。</p>
+<p>抛开商业不谈，这一节我们先来看看NVP与NSX的技术究竟是怎么样的。</p>
+<h1 id="（一）NVP"><a href="#（一）NVP" class="headerlink" title="（一）NVP"></a>（一）NVP</h1><p>NVP是Nicira在被Vmware收购前开发的SDN网络虚拟化平台。Nicira可以说是SDN的骨灰级选手，OpenFlow和OVS就是它一手搞出来的。Nicira的两个最主要的创始人Nick Mckweon，Martin Casado是被业界公认的SDN之父，NVP会在他们手中大放异彩也就不足为怪了。网上对NVP技术的介绍有限，以下的介绍，都是从2014年NSDI的论文《Network Virtualization in Multi-tenant Datacenters》中提炼出来的。</p>
+<h2 id="一．控制平面设计"><a href="#一．控制平面设计" class="headerlink" title="一．控制平面设计"></a>一．控制平面设计</h2><p>NVP的控制平面分为两层，在上面负责和业务打交道是logical controller，在下面负责和设备打交道的是physical controller。Provider通过CLI/GUI/REST API指定租户的逻辑拓扑信息，logical controller接收并存储逻辑拓扑信息，并根据声明式的语言nlog自动将其转化为成逻辑转发流表（universal flows），universal flows对应的是租户层面的逻辑转发资源，如logical port id，logical datapath等，是物力资源无关的。Logical controller通过RPC将universal flows下发给physical controller，physical controller中存着逻辑转发资源与物理转发资源间的映射关系，如vNIC和Transport Node的IP的对应关系等等，它会根据这些映射关系将universal flows转换为physical flows/configurations，然后通过OpenFlow Nicira Extension/OVSDB发送给设备，以指导设备的转发。</p>
+<p><img src="/images/3.1.png" alt=""></p>
+<p>为实现控制平面的高可用性，logical controller和physical controller均采用分布式集群进行Master/ Hot Standby部署，使用zookeeper来进行leader选举、全局logical network id的分配以及REST API的配置信息。为了保证策略在分布式集群中的一致性，NVP对API的执行采用了严格的时序同步。另外，NVP还为配置信息设计了快照机制，方便进行回滚。</p>
+<h2 id="二．数据平面设计"><a href="#二．数据平面设计" class="headerlink" title="二．数据平面设计"></a>二．数据平面设计</h2><p>转发设备就是OVS，也称为Transport Node，通过OpenFlow Nicira Extension和OVSDB与physical controller cluster进行通信，每个Transport Node都会指定一个master controller和多个slave controller。Transport Node进一步分为三类，Hypervisor/Service Node/Gateway。Hypervisor连接着VM，Service Node负责集中地处理广播和组播流量，Gateway负责连接VM与物理主机。</p>
+<p><img src="/images/3.2.png" alt=""></p>
+<p>Transport Node间的通信建立在隧道的基础上，隧道封装默认采用Nicira的私有协议STT，STT采用无状态的TCP包头对L2帧进行封装，这样的好处是得以利用硬件网卡的TSO技术对封装后的TCP包进行快速的分片/重组，从而允许VM上的应用产生巨型TCP负载，以提高端到端应用的通信效率。同时，NVP也提供了对VxLAN和GRE封装的支持。</p>
+<p>为实现数据平面的高可用性，Service Node和Gateway均采用了集群式部署。Service Node Cluster采用了负载均衡的工作机制，各个Hypervisor通过哈希算法将不同的组播/广播流量分散给不同的Service Node进行处理，Hypervisor与Service Node的隧道上跑着802.1ag CFM协议以监测Service Node的状态，一旦心跳信令中断则将该隧道上的流量切换到另外的隧道上。</p>
+<p>不同于Service Node Cluster，Gateway Cluster采用了主备的工作机制，各个L2 segment在Gateway Cluster中只能与1个Gateway建立隧道以连接到物理网络，这是为了防止由于物理网络过于简单的MAC自学习算法在多个Gateway间产生环路。为了实现Gateway的主备，Gateway间通过CFM协议监测彼此的状态，并采用轻量级的leader选举算法，为每个L2 segment选举出活动的Gateway与各个Hypervisor间建立隧道。另外，当主备Gateway间进行切换时，物理网络是不会进行路径切换的，很可能会出现路由黑洞，解决这个问题需要在Gateway上运行特殊的机制以更新物理网络上的MAC Table：或者由新选举出来的主Gateway发送所有VM的免费ARP通告，或者所有的Gateway参与物理网络的STP选举，由新选举出来的主Gateway发送Topology Change Notification来触发物理网络上的更新。</p>
+<h2 id="三．转发过程分析"><a href="#三．转发过程分析" class="headerlink" title="三．转发过程分析"></a>三．转发过程分析</h2><p>NVP的转发采用了proactive的模式，因此其转发过程分为两个阶段，首先是控制平面对于全局转发信息的学习和分发，第二个阶段是packet在datapath上的处理。</p>
+<p>第一阶段示意图如下所示，（1）是Hypervisor/Gateway将MAC地址/vNIC的情况通过OVSDB告知控制平面，（2）是控制平面接收Provider提供的租户信息，（3）是控制平面结合（1）和（2）的输入，通过nlog产生流表并下发给Hypervisor/Service Node/Gateway。</p>
+<p><img src="/images/3.3.png" alt=""></p>
+<p>第二阶段示意图如下所示，当VM的数据包从vNIC进入OVS，首先第一级流表会根据vNIC所属的租户并为其标记metadata，然后根据metadata将数据包送到相应的流水线中继续进行匹配，流水线的后续匹配过程将完成对数据包的L2/L3处理，最终会根据egress流表中的逻辑对包进行转发。</p>
+<p><img src="/images/3.4.png" alt=""></p>
+<p>对于单播流量，若目的地在同一个host中则直接转给目的VM的vNIC，若目的地在另外的host中或者在物理网络中，则需要封隧道转发给相应的Hypervisor或者Gateway。对于广播/组播流量，则需要选择一个Service Node，封装相应的隧道交由该Service Node进行replicate处理，以免占用源Hypervisor上过多的CPU。注意，logical datapath上转发的决策完全发生在源Hypervisor上，决策的结果会放在隧道的header中，目的Hypervisor/Service Node/Gateway只需要根据隧道的header将数据包直接转发给相应的vNIC/NIC即可。</p>
+<h2 id="四．Nicira对NVP的自我解读"><a href="#四．Nicira对NVP的自我解读" class="headerlink" title="四．Nicira对NVP的自我解读"></a>四．Nicira对NVP的自我解读</h2><p>论文的最后，作者对于NVP平台的成功做了一些解读，有如下几点：</p>
+<p>Overlay网络的抽象与传统网络一致，NVP的用户可以基于常见的网络策略对Overlay网络进行控制，这使得传统网络的用户可以自然地接受NVP<br>Nlog的使用使得控制平面的计算效率提升了一个数量级<br>采用了开源的OVS作为转发设备<br>准备采用DPDK技术对数据平面进行加速<br>没有采用激进的SDN思路，而是只对网络边缘进行了SDN的控制，使得用户能够平滑地完成网络的演进</p>
+<h1 id="（二）NSX"><a href="#（二）NSX" class="headerlink" title="（二）NSX"></a>（二）NSX</h1><p>收购了Nicira，Vmware与Cisco在数据中心网络领域正式开战，V家开始大张旗鼓地对NVP进行商业上的整合与包装，并于收购的次年发布其网络虚拟化产品NSX。不过，NVP既然自己都说了选择开源的技术是其成功的先决条件之一，那么Vmware自然不会自废武功，于是NSX采用了两条腿走路的策略：NSX-V将NVP的技术特征嫁接到了VDS上，将其网络虚拟化与服务器虚拟化的产品共同交付；NSX-MH则保留了NVP的开源基因，仍然使用OVS和OpenFlow支撑SDN架构，可以服务于KVM、XEN等非Vmware的服务器虚拟化产品。</p>
+<h2 id="一．NSX-V"><a href="#一．NSX-V" class="headerlink" title="一．NSX-V"></a>一．NSX-V</h2><p>NSX-V用于在纯Vmware vSphere环境对网络进行虚拟化，并不支持KVM、XEN等开源服务器虚拟化技术。虽然NSX-V面向的是Vmware自家的产品，但是其还是保留了NVP的绝大部分SDN技术特征，并提供了强大的NSX Edge以支持更为丰富的NFV组件，为NSX-V的部署提供了更多样的可能性。NSX-V的微分段技术则实现了针对vNIC的分布式防火墙，能够支持更为灵活、立体的网络安全策略。另外，NSX-V还提供了网络管理平面，方便用户进行集中式的管理。</p>
+<h3 id="1-整体架构"><a href="#1-整体架构" class="headerlink" title="1.整体架构"></a>1.整体架构</h3><p>NSX-V的产品架构由上到下分为三个平面，管理、控制与数据。管理平面的主要组件为NSX Manager，它通过UI提供虚拟化网络的视图呈现与集中式的单点配置与管理，通过REST API与Vmware的管理平台交互、通过REST API/私有协议对控制平面/数据平面进行配置与管理。控制平面组件主要为NSX Controller，它向上通过REST API接收NSX Manager的配置与管理，向下通过私有协议来管控数据平面的转发，另外DLR（Distributed Logic Router，分布式逻辑路由器）Control VM也是NSX Controller的一个组件，它接受NSX Manager的配置与管理，并运行传统的路由协议，作为分布式逻辑路由器的控制平面与下一跳路由器（通常为NSX Edge）交换路由信息，以处理南北向流量。数据平面的组件主要包括NSX vSwitch和NSX Edge，通过私有的协议与控制平面进行通信，并根据控制平面提供的全局信息进行转发。</p>
+<p><img src="/images/3.5.png" alt=""></p>
+<p>可以看到，NSX-V的这套架构是一套纯软的方案，从管理到控制再到设备全是软件实现的，将虚拟网络透明地Overlay在物理网络之上。对于纯软的方案来说，功能从来都不是问题，性能与高可用才是软件产品能否成功的关键，NSX-V作为生产级别的网络虚拟化平台，自然也少不了对这些方面的考虑。下面我们来分平面对NSX-V的技术实现进行剖析。</p>
+<h3 id="2-管理平面设计"><a href="#2-管理平面设计" class="headerlink" title="2.管理平面设计"></a>2.管理平面设计</h3><p>管理平面的主要组件是NSX Manager，主要功能有以下几点：</p>
+<p>管理、推送控制平面和数据平面互相认证的安全证书<br>部署、配置NSX Controller<br>配置NSX vSwitch和NSX Edge<br>网络流量的采样与监控<br>除了以上管理功能，NSX Manager还会作为NSX vSwitch中DFW（Distributed FireWall，分布式防火墙）模块的控制平面，NSX Manager将绕过NSX Controller，通过RabbitMQ向ESXi主机Hypervisor中的vsfwd进程发分布式防火墙的策略。分布式防火墙的策略可以通过NSX Manager的API来指定，也可以通过vSphere Web Client来生成，此时vCenter Server可以看做是分布式防火墙的管理平面。</p>
+<p>管理平面的工作流程简要示意如下：（1）NSX Manager自身的部署；（2）NSX Manager向vCenter注册；（3）部署、配置控制平面；（4）（5）配置数据平面。</p>
+<p><img src="/images/3.6.png" alt=""></p>
+<p>NSX Manager通过标准虚拟机模板的方式部署在vSphere环境中，可采用HA或者FT的方式进行备份。虽然NSX Manager有自己的UI，不过为了方便管理，NSX Manager还是会注册到vCenter中，用户在vCenter UI中的Network&amp;&amp;Security选项卡下可以对NSX网络进行间接的管理。</p>
+<h3 id="3-控制平面设计"><a href="#3-控制平面设计" class="headerlink" title="3.控制平面设计"></a>3.控制平面设计</h3><p>NSX Controller向上通过REST API与管理平面进行交互，以获取安全证书和租户的业务策略，向下通过私有协议与ESXi主机中Hypervisor中的netcpa进程交互，汇聚数据平面的信息并控制数据包的L2/L3转发。NSX Controller上面存储的信息包括：ARP表（用于在设备本地抑制ARP的泛洪），MAC地址表（用于L2的单播），VTEP表（用于定向封装隧道解除物理网络上的组播）和路由表（用于分布式路由）。ARP/MAC/VTEP表均从ESXi主机的Hypervisor中学习得到，路由表则从DLR Control VM学习得到。</p>
+<p><img src="/images/3.7.png" alt=""></p>
+<p>当采用分布式路由处理南北向流量时，DLR（Distributed Logical Router，分布式逻辑路由器）和它下一跳路由器（通常是NSX Edge，也可能是物理路由设备）间的转发逻辑是由传统的分布式路由协议来决策的，DLR的转发平面分布在各个ESXi主机上，如果要为DLR做路由，只能将DLR的控制逻辑从DLR的转发平面抽离出来，与下一跳路由器交互OSPF/BGP等路由协议，以打通南北向流量。DLR Control VM就是承载DLR控制逻辑的实体，它逻辑上属于NSX Controller的一个组件，下图给出了DLR Control VM的工作原理：（1）通过NSX Manager部署、配置DLR Control VM，主要包括DLR的port/MAC/IP和DLR上要运行的路由协议，目前DLR上只支持OSPF和BGP；（2）NSX Controller Cluster将DLR的port/MAC/IP信息发布给ESXi主机，以便在ESXi主机本地进行L3逻辑转发；（3）DLR Control VM与下一跳路由器（图中显示为NSX Edge）交互分布式路由协议，DLR向外发布了租户的IP地址，学习到了通向Internet的路由；（4）DLR Control VM将学习到的路由告诉给NSX Controller Cluster；（5）NSX Controller Cluster向ESXi主机中的DLR反射Internet路由，使其网关指向下一跳路由器（图中显示为NSX Edge）；（6）DLR根据Internet路由将VM产生的Internet送给下一跳路由器（图中显示为NSX Edge）。</p>
+<p><img src="/images/3.8.png" alt=""></p>
+<p>控制平面的NSX Controller和DLR Control VM组件，同样是通过虚拟机的形式部署在vSphere环境中的。NSX Controller的工作负载很大，因此需要建立Controller集群，Controller节点间通过PAXOS算法实现同步，为了完成leader的选举，集群中节点的个数需要为奇数。NSX Controller集群通常工作在负载均衡的模式下，不同的ESXi主机可以选择不同的Controller节点作为Master，而且同一个ESXi主机中的VTEP和分布式路由功能也可以选择不同的Controller节点作为Master，后一种负载均衡粒度更为精细，由Cluster Slicing机制来实现。DLR Control VM的负载没有NSX Controller那么大，因此不需要集群，进行简单的主备部署即可。</p>
+<h3 id="4-数据平面设计"><a href="#4-数据平面设计" class="headerlink" title="4.数据平面设计"></a>4.数据平面设计</h3><p>NSX-V数据平面的组件包括NSX vSwitch和NSX Edge。NSX vSwitch在VDS的基础上添加了3个kernel module：VxLAN（VTEP），DLR（分布式逻辑路由器）和DFW（分布式防火墙）。NSX Edge则为NSX网络提供了L2 GW以及L3-L7的高级网络服务，如集中式路由/NAT、集中式防火墙、负载均衡、VPN等等。</p>
+<p>先来看NSX vSwitch。VDS负责租户的二层转发，VM连接在VDS上。VxLAN module对目的地位于其它ESXi主机的L2帧封装VxLAN Header；DLR module负责租户的三层转发，包括东西向流量和南北向流量；DFW与VM的vNIC相关联，能够per VM的细粒度、定制化的安全防护。由于这些module都是分布式的，不存在单点故障的问题，因此NSX vSwitch本身就具备了很高的可用性，不需要再设计额外的HA机制。</p>
+<p><img src="/images/3.9.png" alt=""></p>
+<p>NSX Edge可以理解为NSX-V提供的NFV产品套件。L2 Gateway用来实现NSX租户网络和物理主机的二层连通，L3 router负责集中式的路由和NAT，用于连接NSX-V租户网络与Internet。除了二层和三层网关外，NSX Edge还提供了诸多的高级网络服务：防火墙用来提供per VDC级别的安全防护；负载均衡既可以集成在三层网关上，又可以独立于三层网关部署，高版本的NSX-V还支持DLB（Distributed Load Balancer，分布式负载均衡）；VPN既可以部署L2 VPN又可以部署L3 VPN，L2 VPN支持连接VLAN和VxLAN网络，L3 VPN支持IPSEC和SSL两种。NSX Edge通常放在NFV POD下面采用集中式部署，以连接NSX-V网络与外界网络，因此需要为NSX Edge设计HA机制，以保证其可用性。对于上述不同的NSX Edge功能，它们的HA机制都不尽相同，此处不进行详细的分析。</p>
+<p><img src="/images/3.10.png" alt=""></p>
+<p>这一小节的最后，来介绍一下ESXi主机的上联。在vSphere环境中，除了VxLAN 所承载的VM通信的数据流量以外，VDS上还通过VMkernel接口承载了很多其他类型的流量，如管理流量，vMotion流量和存储流量，这些流量的特征和优先级截然不同，对物理网络的需求自然也有很大的区别。因此，这4种类型的流量在上联时可以采用不同的VLAN ID，并在上联口使用VLAN Trunking技术，以便进行复用、隔离和QoS规划。</p>
+<p><img src="/images/3.11.png" alt=""></p>
+<h3 id="5-转发过程分析"><a href="#5-转发过程分析" class="headerlink" title="5.转发过程分析"></a>5.转发过程分析</h3><p>NSX-V与NVP的转发过程类似，大体也分为控制平面学习和数据平面转发这两个阶段，限于篇幅有限，具体的过程这里不再逐一赘述。下面说明NSX-V与NVP转发过程的主要不同之处：</p>
+<ul>
+<li>由于NVP采用了OpenFlow，因此L2/L3的转发都是通过OF流水线完成的，而NSX-V没有采用OpenFlow，其L2转发由VDS和VxLAN module共同完成，L3转发则由DLR module完成。</li>
+</ul>
+<ul>
+<li><p>相比于NVP将vNIC直接连到OVS datapath上，NSX-V网络中vNIC的流量会先经过DFW进行安全策略的过滤，安全的流量才会被送到VDS datapath上。如果有SFC的需求，那么转发将会变得更加复杂。</p>
+</li>
+<li><p>NVP的Gateway只能做L2网关，没有集中式的vRouter做L3网关，如果使用物理路由器作为NVP分布式路由器的下一跳，物理路由器上的路由配置将会十分复杂。相比之下，NSX-V的NSX Edge可以作为vRouter连接租户的虚拟网络和外部网络，允许启用OSPF/BGP等动态路由协议，可以大大简化物理路由器上的配置。</p>
+</li>
+<li><p>NVP的论文中没有提到对ARP广播流量的优化，NSX-V可以通过监听DHCP信令，记录MAC与IP的映射关系，从而可以在ESXi本地代答ARP，以抑制ARP Request的泛洪。</p>
+</li>
+<li><p>NVP采用Service Node集中处理广播/组播流量，NSX-V并没有保留这一做法。NSX-V对于广播/组播流量的处理，有三种方式：a）物理网络开启IGMP和PIM做VxLAN组播；b）源ESXi主机进行头端复制，然后从多个隧道做单播（类似于伪广播），如果广播/组播需要跨网段，源ESXi主机还需要向UTEP（Unicast Tunnel End Point，单播隧道终结点）进行隧道的单播，UTEP解封后会在它所在的网段进行头端复制和伪广播；c）前两种方式的结合。</p>
+</li>
+</ul>
+<h2 id="二．NSX-MH"><a href="#二．NSX-MH" class="headerlink" title="二．NSX-MH"></a>二．NSX-MH</h2><p>NSX-MH与NSX-V的最大的区别就是NSX-X在数据平面使用了开源的OVS，因此能够支持非vSphere环境，如KVM、XEN等。既然数据平面使用的是OVS，那么南向协议自然也就还是OpenFlow和OVSDB，因此NSX-MH基本保留了NVP已有的技术实现，如用流水线实现L2和东西向的分布式路由，支持用Service Node处理广播/组播，使用STT做Hypervisor到Hypervisor的隧道，等等。同时，为了向NSX-V看齐，NSX-MH在NVP的基础上也增加了很多的新功能：</p>
+<ul>
+<li><p>增加了NSX-Manager作为管理平面，为控制平面和数据平面的认证提供证书</p>
+</li>
+<li><p>在Controller集群中引入了切片机制，实现控制平面的负载均衡</p>
+</li>
+<li><p>支持集成物理的L2 Gateway，Hypervisor使用VxLAN协议与物理L2 Gateway互通</p>
+</li>
+<li><p>Service Node支持从STT向其他隧道的转换</p>
+</li>
+<li><p>通过在OVS上挂vRouter来支持集中式的L3 网关，更好的支持VM与Internet的通信</p>
+</li>
+<li><p>通过OpenFlow流表为per VM引入L2-L4的安全策略，但不支持有状态的session。</p>
+</li>
+</ul>
+<p>对于Vmware NSX的介绍到此就全部结束了。NSX-V和NSX-MH的并行演进，说明Vmware不仅仅是要NSX服务于Vmware的服务器虚拟化，而是希望它可以成为通用的数据中心网络虚拟化平台。要成为通用的平台，要从技术和生态两个角度都具备过人之处。技术上NSX无疑是行业领先的，前面也已经详细地进行了介绍。生态方面，Vmware已经与众多网络厂商进行了深度的合作，除了Cisco具备在数据中心的软硬件都能独当一面的实力，其他的网络厂商如Juniper、Arista、Brocade的产品都支持与Vmware NSX的集成，以交付完整的数据中心网络。</p>
+<p>从目前的态势来看，Vmware NSX与Cisco ACI在数据中心SDN的较量中不落下风，甚至还处于稍稍领先的位置，不过鉴于Martin Casado已经跳槽去做VC了，两大商用SDDCN解决方案的战争未来走势如何，让我们拭目以待。</p>
+<h2 id="Q-amp-A"><a href="#Q-amp-A" class="headerlink" title="Q&amp;A"></a>Q&amp;A</h2><blockquote>
+<p>Q1：在部署NSX时，底层物理网络的设计有什么需要注意的吗？路由规划方面</p>
+<p>A1：目前没有想到，其实二层的underlay也无所谓。ECMP要开</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p>Q2：Nsx-mh中挂的vrouter是qugga vyos之类的吗，充当edge的功能</p>
+<p>A2：个人猜测不是，用了OVS，是因为当时OVS还是Vmware的，现在OVS给Linux基金会了</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p>Q3：“ b. nlog的使用使得控制平面的流表转化效率提升了一个数量级” 这点你怎么理解的？</p>
+<p>A3：逻辑网络的流表规模是N，物理网络流表规模是M，如果在一起做映射，时间复杂度就是O（n2），分解开到logical controller和physicall controller时间复杂度就是O（n）。不过分解后人工配映射太复杂了，于是就有了nlog</p>
+</blockquote>
+<!-- -->
+<blockquote>
+<p>Q4：最后到底是谁的天下呢？平分秋色还是，称雄一方</p>
+<p>A4：我支持google和Fb的路子，个人看好开源+白盒</p>
+</blockquote>
+</div><div class="article-meta" style="max-width:800px"><div class="tags"><i class="icon icon-tag"></i><ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/Nicira-NVP/">Nicira NVP</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/VMware-NSX/">VMware NSX</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/sdn/">sdn</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/全文转载/">全文转载</a><span class="tag-list-count">2</span></li></ul></div></div><div class="article-comment" style="max-width:800px"><div class="ds-thread" id="ds-thread" data-thread-key="cjc395k5m0001zbpvql1s7mmx" data-title="转载【从Nicira NVP 到 VMware NSX分享】" data-url="https://zzongbh.github.io/55317a93/" site-name="ueibo"></div><script>var siteName = document.getElementById('ds-thread').getAttribute('site-name');
+var duoshuoQuery = {short_name: siteName};
+(function() {
+  var ds = document.createElement('script');
+  ds.type = 'text/javascript';ds.async = true;
+  ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+  ds.charset = 'UTF-8';
+  (document.getElementsByTagName('head')[0] 
+  || document.getElementsByTagName('body')[0]).appendChild(ds);
+})();</script></div><ul class="navication"><li class="home"><a href="/"><i class="icon icon-home"></i></a></li><li><a href="/5061ae88/"><i class="icon icon-arror-right"></i></a></li></ul><div class="page-footer"><div class="top"><ul class="social"><li><a href="zzongbh#gmail.com" title="email" target="_blank"><i class="icon icon-email"></i></a></li></ul></div><div class="bottom"><p class="copyright">© 2018 高脚猪<br><small>POWER BY <a href="https://hexo.io" target="_blank">HEXO</a></small><small>, THEME BY <a href="https://github.com/BoizZ/hexo-theme-laughing" target="_blank">LAUGHING</a></small></p></div></div></div><script>var wrap = document.getElementById('wrap');
+window.onload = function () {
+  wrap.className += ' done';
+}</script></body></html>
