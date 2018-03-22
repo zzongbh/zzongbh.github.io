@@ -1,0 +1,843 @@
+<!DOCTYPE html><html lang="zh-cn"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no"><meta name="format-detection" content="telephone=no"><meta name="format-detection" content="email=no"><meta name="description" content="技术猿 攻城狮"><meta name="keywords" content="ocserv, vpn,"><title>vxlan--overlay 网络虚拟化技术 - 高脚猪</title><link rel="stylesheet" href="/css/main_style.min.css"><link rel="icon" href="/images/favicon.ico"></head><body><input id="navi" type="checkbox"><ul class="main-navication"><li><a href="/"><span>Home</span></a></li></ul><div class="wrapper" id="wrap"><div class="post-header"><label class="navi-button light" for="navi">MENU</label><img class="background" src="http://callfiles.ueibo.com/hexo-theme-laughing/post_background.jpg"><div class="post-title"><h1 class="title">vxlan--overlay 网络虚拟化技术</h1><ul class="meta"><li><i class="icon icon-author"></i>公子青</li><li><i class="icon icon-clock"></i>81 Minutes</li><li><i class="icon icon-calendar"></i>March 22, 2018</li></ul></div></div><div class="article-content" style="max-width:800px"><blockquote>
+<p>2018-01-04 本文转载自华为support文章 <a href="http://support.huawei.com/enterprise/zh/doc/DOC1000178185/?idPath=7919710%7C21782164%7C21782167%7C22318564%7C6691579]" target="_blank" rel="noopener">原文</a></p>
+</blockquote>
+<h2 id="1-简介"><a href="#1-简介" class="headerlink" title="1.简介"></a>1.简介</h2><h3 id="1-1-定义"><a href="#1-1-定义" class="headerlink" title="1.1 定义"></a>1.1 定义</h3><p>RFC7348定义了VLAN扩展方案VXLAN（Virtual eXtensible Local Area Network，虚拟扩展局域网）。VXLAN采用MAC in UDP（User Da/ zzztagram Protocol）封装方式，是NVO3（Network Virtualization over Layer 3）中的一种网络虚拟化技术。</p>
+<h3 id="1-2-目的"><a href="#1-2-目的" class="headerlink" title="1.2 目的"></a>1.2 目的</h3><p>服务器虚拟化技术的广泛部署，极大地增加了数据中心的计算密度；同时，为了实现业务的灵活变更，虚拟机VM（Virtual Machine）需要能够在网络中不受限迁移，这给传统的“二层+三层”数据中心网络带来了新的挑战。</p>
+<p>为了应对传统数据中心网络对服务器虚拟化技术的限制，VXLAN技术应运而生，其能够很好地解决如下问题：</p>
+<ul>
+<li><p>针对虚拟机规模受设备表项规格限制</p>
+<p>  服务器虚拟化后，VM的数量比原有的物理机发生了数量级的增长，而接入侧二层设备的MAC地址表规格较小，无法满足快速增长的VM数量。</p>
+<p>  VXLAN将管理员规划的同一区域内的VM发出的原始报文封装成新的UDP报文，并使用物理网络的IP和MAC地址作为外层头，这样报文对网络中的其他设备只表现为封装后的参数。因此，极大降低了大二层网络对MAC地址规格的需求。</p>
+</li>
+<li><p>针对网络隔离能力限制</p>
+<p>  VLAN作为当前主流的网络隔离技术，在标准定义中只有12比特，因此可用的VLAN数量仅4096个。对于公有云或其它大型虚拟化云计算服务这种动辄上万甚至更多租户的场景而言，VLAN的隔离能力无法满足。</p>
+<blockquote>
+<p>租户是一套完整的可用于数据中心网络部署的逻辑资源的集合，逻辑资源包括VLAN、IP地址池等网络资源和物理服务器、虚拟机等计算资源。租户有各自的租户管理员进行网络业务的编排和部署。</p>
+</blockquote>
+<p>  VXLAN引入了类似VLAN ID的用户标识，称为VXLAN网络标识VNI（VXLAN Network Identifier），由24比特组成，支持多达16M的VXLAN段，有效地解决了云计算中海量租户隔离的问题。</p>
+</li>
+<li><p>虚拟机迁移范围受限</p>
+<p>  虚拟机迁移是指将虚拟机从一个物理机迁移到另一个物理机。为了保证虚拟机迁移过程中业务不中断，则需要保证虚拟机的IP地址、MAC地址等参数保持不变，这就要求虚拟机迁移必须发生在一个二层网络中。而传统的二层网络，将虚拟机迁移限制在了一个较小的局部范围内。</p>
+</li>
+</ul>
+<p>VXLAN将VM发出的原始报文进行封装后通过VXLAN隧道进行传输，隧道两端的VM不需感知传输网络的物理架构。这样，对于具有同一网段IP地址的VM而言，即使其物理位置不在同一个二层网络中，但从逻辑上看，相当于处于同一个二层域。即VXLAN技术在三层网络之上，构建出了一个虚拟的大二层网络，只要虚拟机路由可达，就可以将其规划到同一个大二层网络中。这就解决了虚拟机迁移范围受限问题。</p>
+<h3 id="1-3-受益"><a href="#1-3-受益" class="headerlink" title="1.3 受益"></a>1.3 受益</h3><p>随着数据中心在物理网络基础设施上实施服务器虚拟化的快速发展，作为NVO3技术之一的VXLAN：</p>
+<ul>
+<li><p>VXLAN特性在本质上属于一种VPN技术，能够在任意路由可达的网络上叠加二层虚拟网络，通过VXLAN网关实现VXLAN网络内部的互通，同时，也可以实现与传统的非VXLAN网络的互通。</p>
+</li>
+<li><p>VXLAN通过采用MAC in UDP封装来延伸二层网络，将以太报文封装在IP报文之上，通过路由在网络中传输，无需关注虚拟机的MAC地址。且路由网络无网络结构限制，具备大规模扩展能力。通过路由网络，虚拟机迁移不受网络架构限制。</p>
+</li>
+</ul>
+<h2 id="2-原理描述"><a href="#2-原理描述" class="headerlink" title="2 原理描述"></a>2 原理描述</h2><h3 id="2-1-vxlan网络架构"><a href="#2-1-vxlan网络架构" class="headerlink" title="2.1 vxlan网络架构"></a>2.1 vxlan网络架构</h3><p>VXLAN是NVO3中的一种网络虚拟化技术，通过将原主机发出的数据包封装在UDP中，并使用物理网络的IP、MAC作为外层头进行封装，然后在IP网络上传输，到达目的地后由隧道终结点解封装并将数据发送给目标主机。</p>
+<p>通过VXLAN，虚拟网络可接入大量租户，且租户可以规划自己的虚拟网络，不需要考虑物理网络IP地址和广播域的限制，降低了网络管理的难度，同时满足数据中心大二层虚拟迁移和多租户的需求。</p>
+<p>类似于传统的VLAN网络，VXLAN网络也有VXLAN网络内互访和VXLAN网络间互访。</p>
+<h4 id="2-1-1-vxlan网络内互访"><a href="#2-1-1-vxlan网络内互访" class="headerlink" title="2.1.1 vxlan网络内互访"></a>2.1.1 vxlan网络内互访</h4><p>通过VXLAN技术可以实现在已有三层网络上构建虚拟二层网络，实现VM之间的二层互通。VXLAN网络内互访如下图所示。</p>
+<p><img src="/images/4.1.png" alt=""></p>
+<p>VXLAN网络内互访中涉及的概念如下：</p>
+<ul>
+<li><p>网络标识VNI（VXLAN Network Identifier）</p>
+<p>  类似于传统网络中的VLAN ID，用于区分VXLAN段，不同VXLAN段的租户不能直接进行二层通信。一个租户可以有一个或多个VNI，VNI由24比特组成，支持多达16M的租户。</p>
+</li>
+<li><p>广播域BD（Bridge Domain）</p>
+<p>  类似传统网络中采用VLAN划分广播域方法，在VXLAN网络中通过BD划分广播域。</p>
+<p>  在VXLAN网络中，将VNI以1:1方式映射到广播域BD，一个BD就表示着一个广播域，同一个BD内的VM就可以进行二层互通。</p>
+</li>
+<li><p>VXLAN隧道端点VTEP（VXLAN Tunnel Endpoints）</p>
+<p>  VTEP可以对VXLAN报文进行封装和解封装。</p>
+<p>  VXLAN报文中源IP地址为源端VTEP的IP地址，目的IP地址为目的端VTEP的IP地址。一对VTEP地址就对应着一条VXLAN隧道。在源端封装报文后通过隧道向目的端VTEP发送封装报文，目的端VTEP对接收到的封装报文进行解封装。</p>
+</li>
+<li><p>虚拟接入点VAP（Virtual Access Point）</p>
+<p>  VXLAN业务接入点，可以基于VLAN或报文流封装类型（相关介绍参考2.2.3.1 报文识别）接入业务：</p>
+<ul>
+<li>基于VLAN接入业务：在VTEP上建立VLAN与BD的一对一或多对一的映射。这样，当VTEP收到业务侧报文后，根据VLAN与BD的映射关系，实现报文在BD内进行转发。</li>
+<li>基于报文流封装类型接入业务：在VTEP连接下行业务的物理接口上创建二层子接口，并配置不同的流封装类型，使得不同的接口接入不同的数据报文。同时，将二层子接口与BD进行一一映射。这样业务侧报文到达VTEP后，即会进入指定的二层子接口。即根据二层子接口与BD的映射关系，实现报文在BD内进行转发。</li>
+</ul>
+</li>
+<li><p>网络虚拟边缘NVE（Network Virtualization Edge）</p>
+<p>  NVE是实现网络虚拟化功能的网络实体。报文经过NVE封装转换后，NVE间就可基于三层基础网络建立二层虚拟化网络，图中的交换机设备即为NVE。</p>
+</li>
+<li><p>二层网关</p>
+<p>  类似传统网络的二层接入设备，在VXLAN网络中通过二层网关解决租户接入VXLAN虚拟网络，也可用于同一VXLAN虚拟网络的子网通信。</p>
+</li>
+</ul>
+<h4 id="2-1-2-vxlan网络间互访"><a href="#2-1-2-vxlan网络间互访" class="headerlink" title="2.1.2 vxlan网络间互访"></a>2.1.2 vxlan网络间互访</h4><p>不同BD之间的VM不能直接进行二层通信，需要通过VXLAN三层网关实现VM的三层通信。VXLAN网络间互访网络架构如下图所示。</p>
+<p><img src="/images/4.2.png" alt=""></p>
+<p>VXLAN网络间互访中涉及的概念如下：</p>
+<ul>
+<li><p>三层网关</p>
+<p>  类似传统网络中不同VLAN的用户间不能直接进行二层互访，不同VNI之间的VXLAN及VXLAN和非VXLAN之间也不能直接相互通信。为了使VXLAN之间，以及VXLAN和非VXLAN之间能够进行通信，引入了VXLAN三层网关的概念。</p>
+<p>  三层网关用于VXLAN虚拟网络的跨子网通信以及外部网络的访问。</p>
+</li>
+<li><p>VBDIF接口</p>
+<p>  类似于传统网络中采用VLANIF解决不同广播域互通的方法，在VXLAN中引入了VBDIF的概念。</p>
+<p>  VBDIF接口在VXLAN三层网关上配置，是基于BD创建的三层逻辑接口。通过VBDIF接口配置IP地址可实现不同网段的VXLAN间，及VXLAN和非VXLAN的通信，也可实现二层网络接入三层网络。</p>
+</li>
+</ul>
+<h4 id="2-1-3-与vlan对比"><a href="#2-1-3-与vlan对比" class="headerlink" title="2.1.3 与vlan对比"></a>2.1.3 与vlan对比</h4><p>上面介绍VXLAN相关概念时与传统网络中的VLAN进行了对比，下面总结VXLAN与VLAN的差别。</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>VLAN网络</th>
+<th>VXLAN网络</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>概念</td>
+<td>虚拟局域网。</td>
+<td>虚拟扩展局域网。</td>
+</tr>
+<tr>
+<td>网络存在形式</td>
+<td>将一个物理的LAN在逻辑上划分成多个广播域，并且将网络范围限制在一个较小的地域范围内。</td>
+<td>在已有的任意路由可达的网络上叠加的二层虚拟网络，不受地域范围限制，具备大规模扩展能力。</td>
+</tr>
+<tr>
+<td>可支持虚拟局域网范围</td>
+<td>VLAN作为当前主流的网络隔离技术，在标准定义中只有12比特，因此可用的VLAN数量仅4096个。对于公有云或其它大型虚拟化云计算服务这种动辄上万甚至更多租户的场景而言，VLAN的隔离能力无法满足。</td>
+<td>VXLAN作为新型的网络隔离技术，在RFC 7348定义中有24比特，支持多达16M（约1600万）租户隔离，有效地解决了云计算中海量租户隔离的问题。</td>
+</tr>
+<tr>
+<td>网络划分方式</td>
+<td>通过VLAN ID划分广播域，同一个广播域之间的主机能进行二层互通。</td>
+<td>通过BD划分广播域，同一个BD内的VM可以进行二层互通。</td>
+</tr>
+<tr>
+<td>封装方式</td>
+<td>在报文中添加VLAN Tag。</td>
+<td>原始报文在封装过程中先被添加一个VXLAN帧头，再被封装在UDP报头中，最后使用承载网络的IP、MAC地址作为外层头进行封装。</td>
+</tr>
+<tr>
+<td>网络间互通方式</td>
+<td>VLAN间互访通过VLANIF接口实现，VLANIF接口是一种三层的逻辑接口，可以实现VLAN间的三层互通。</td>
+<td>VXLAN间互访以及VXLAN和非VXLAN之间的通信通过VBDIF接口实现。<br> VBDIF接口在VXLAN三层网关上配置，是基于BD创建的三层逻辑接口。</td>
+</tr>
+<tr>
+<td>给用户带来的受益</td>
+<td>限制广播域：广播域被限制在一个VLAN内，节省了带宽，提高了网络处理能力。</td>
+<td><strong>增强局域网的安全性</strong>：不同VLAN内的报文在传输时是相互隔离的，即一个VLAN内的用户不能和其它VLAN内的用户直接通信。 <br> <strong>位置无关性</strong>：业务可在任意位置灵活部署，缓解了服务器虚拟化后相关的网络扩展问题。 <br> <strong>网络部署灵活性</strong>：在传统网络架构上叠加新的网络，部署方便，同时避免了大二层的广播风暴，可扩展性极强。 <br> <strong>适合云业务</strong>：支持千万级别租户隔离，支持云业务的大规模部署。 <br> <strong>技术优势</strong>：采用MAC in UDP封装方式，无需关注VM的MAC地址，降低了大二层网络对MAC地址规格的需求。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-2-报文封装格式"><a href="#2-2-报文封装格式" class="headerlink" title="2.2 报文封装格式"></a>2.2 报文封装格式</h3><p>原始报文在封装过程中先被添加一个VXLAN帧头，再被封装在UDP报头中，并使用承载网络的IP、MAC地址作为外层头进行封装。</p>
+<p><img src="/images/4.3.png" alt=""></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>描述 </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VXLAN header（VXLAN头封装）</td>
+<td><strong>VXLAN Flags：</strong> 标记位，8比特，取值为00001000。<br> <strong>VNI：</strong> VXLAN网络标识，用于区分VXLAN段，由24比特组成，支持多达16M的租户。一个租户可以有一个或多个VNI，不同VNI的租户之间不能直接进行二层相互通信。<br><strong>Reserved：</strong> 保留未用，分别由24比特和8比特组成，设置为0。</td>
+</tr>
+<tr>
+<td>Outer UDP header（外层UDP头封装）</td>
+<td><strong>DestPort：</strong> 目的UDP端口号，设置为4789。<br><strong>Source Port：</strong> 源UDP端口号，根据内层以太报文头通过哈希算法计算后的值。</td>
+</tr>
+<tr>
+<td>Outer IP header（外层IP头封装）</td>
+<td><strong>IP SA：</strong> 源IP地址，VXLAN隧道源端VTEP的IP地址。<br><strong>IP DA：</strong> 目的IP地址，VXLAN隧道目的端VTEP的IP地址。</td>
+</tr>
+<tr>
+<td>Outer Ethernet header（外层Ethernet头封装）</td>
+<td><strong>MAC DA：</strong> 目的MAC地址，为到达目的VTEP的路径上，下一跳设备的MAC地址。<br><strong>MAC SA：</strong> 源MAC地址，发送报文的源端VTEP的MAC地址。<br><strong>802.1Q Tag：</strong> 可选字段，该字段为报文中携带的VLAN Tag。<br><strong>Ethernet Type：</strong> 以太报文类型，IP协议报文中该字段取值为0x0800。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-3-VXLAN运行机制"><a href="#2-3-VXLAN运行机制" class="headerlink" title="2.3 VXLAN运行机制"></a>2.3 VXLAN运行机制</h3><p>在设备上部署VXLAN网络时，需要分别对下行接入业务选择部署以及上行VXLAN隧道建立部署，两者部署完成后，报文就能在VXLAN网络中进行转发。因此，VXLAN运行机制可以概括为：报文识别、隧道建立以及报文转发。</p>
+<h4 id="2-3-1-报文识别"><a href="#2-3-1-报文识别" class="headerlink" title="2.3.1 报文识别"></a>2.3.1 报文识别</h4><p>在VXLAN网络中，将VNI以1:1方式映射到广播域BD。当报文到达VTEP后，VTEP只要能够识别出报文所属的BD，就能够选择正确的VXLAN隧道进行转发。VTEP有两种方式识别报文所属的VXLAN。</p>
+<h5 id="基于VLAN识别报文所属的VXLAN"><a href="#基于VLAN识别报文所属的VXLAN" class="headerlink" title="基于VLAN识别报文所属的VXLAN"></a>基于VLAN识别报文所属的VXLAN</h5><p>基于网络规划，在VTEP上建立VLAN与BD的一对一或多对一的映射。这样，当VTEP收到业务侧报文后，根据VLAN与BD以及BD与VNI的对应关系即能够选择相应的VXLAN隧道进行转发。</p>
+<p>如下图所示，VLAN 10与VLAN 20同属于BD 10，VTEP上存在BD 10与VLAN 10和VLAN 20的对应关系，同时BD 10对应的VXLAN的VNI为1000。这样当VTEP接收到PC_1或PC_2的报文时，就能够选择正确的VXLAN隧道进行转发。</p>
+<p><img src="/images/4.4.png" alt=""></p>
+<h5 id="基于报文流封装类型识别报文所属的VXLAN"><a href="#基于报文流封装类型识别报文所属的VXLAN" class="headerlink" title="基于报文流封装类型识别报文所属的VXLAN"></a>基于报文流封装类型识别报文所属的VXLAN</h5><p>报文的流封装类型可概括地分为携带指定VLAN Tag与不携带VLAN Tag两种。基于此，在VTEP连接下行业务的物理接口上创建二层子接口，并配置二层子接口对报文的不同处理方式，同时将二层子接口与BD进行一一映射。这样业务侧报文到达VTEP后，即会进入指定的二层子接口。VTEP即能够根据二层子接口与BD的映射关系，以及BD与VNI的映射关系，选择正确的VXLAN隧道进行报文转发。<br>如下表所示，不同流封装类型的二层子接口对报文的处理方式分为四种。</p>
+<table>
+<thead>
+<tr>
+<th>流封装类型</th>
+<th>允许进入VXLAN隧道的报文类型</th>
+<th>对VXLAN报文进行封装处理</th>
+<th>对VXLAN报文进行解封装处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dot1q</td>
+<td>只允许携带指定VLAN Tag的报文进入VXLAN隧道。</td>
+<td>进行VXLAN封装时，会剥离原始报文的VLAN Tag。</td>
+<td>进行VXLAN解封装后，会根据子接口上dot1q终结配置的vid为报文添加VLAN Tag，再转发。</td>
+</tr>
+<tr>
+<td>untag</td>
+<td>只允许不携带VLAN Tag的报文进入VXLAN隧道。</td>
+<td>进行VXLAN封装时，不对原始报文做处理，即不添加任何VLAN Tag。</td>
+<td>进行VXLAN解封装后，不对报文做处理，包括VLAN Tag的添加、替换或剥离。</td>
+</tr>
+<tr>
+<td>default</td>
+<td>允许所有报文进入VXLAN隧道，不论报文是否携带VLAN Tag。</td>
+<td>进行VXLAN封装时，不对原始报文做处理，包括添加、替换或剥离。</td>
+<td>进行VXLAN解封装后，不对报文做处理，包括VLAN Tag的添加、替换或剥离。</td>
+</tr>
+<tr>
+<td>qinq</td>
+<td>只允许带有指定的两层VLAN Tag的报文进入VXLAN隧道。</td>
+<td>进行VXLAN封装时，会剥离原始报文的所有VLAN Tag。</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>进行VXLAN解封装后：<br><strong>S5720HI：</strong> 根据子接口上QinQ终结配置的ce-vid和pe-vid为报文添加两层VLAN Tag，再转发。<br><strong>其他形态：</strong> 若报文不带VLAN Tag，则先根据子接口上QinQ终结配置的ce-vid和pe-vid为报文添加两层VLAN Tag，再转发；若报文带VLAN Tag，则先剥掉外层VLAN Tag再根据子接口上QinQ终结配置的ce-vid和pe-vid为报文添加两层VLAN Tag，再转发。</p>
+<p>如下图所示，VTEP基于物理接口GE0/0/1有两个子接口，不同的流封装类型与不同的BD进行绑定。PC_1与PC_2分别属于VLAN 10和VLAN 30，二层交换机上行连接VTEP的接口上配置的接口类型是Trunk，允许通过的VLAN为10和30，PVID为VLAN 30。当PC_1发出的报文经过该接口时，由于接口的缺省VID与报文的VID不同，直接透传该报文到VTEP；当PC_2发出的报文经过该接口时，由于报文的VID与接口的缺省VID相同，剥离VID=30的Tag。因此，PC_1与PC_2发出的报文到达VTEP的GE0/0/1接口时，一个是携带VLAN 10的，一个是不携带VLAN Tag的。为了区分两种报文，就必须要在GE0/0/1上分别创建dot1q和untag类型的二层子接口：</p>
+<ul>
+<li>创建二层子接口GE0/0/1.1流封装类型为dot1q，允许携带指定VLAN Tag为10的报文进入VXLAN隧道。</li>
+<li>创建二层子接口GE0/0/1.2流封装类型为untag，允许不携带VLAN Tag的报文进入VXLAN隧道。</li>
+</ul>
+<p>当PC_1或PC_2的报文到达VTEP时，根据报文的Tag情况选择进入不同的二层子接口，之后，VTEP根据子接口与BD，以及BD与VNI的映射关系，即能够选择正确的VXLAN隧道进行报文转发。</p>
+<p><img src="/images/4.5.png" alt=""></p>
+<h4 id="2-3-2-隧道建立"><a href="#2-3-2-隧道建立" class="headerlink" title="2.3.2 隧道建立"></a>2.3.2 隧道建立</h4><p>VXLAN隧道由一对VTEPIP地址确定。静态VXLAN隧道的创建需要通过手工配置源端和目的端的VNI与VTEP的IP地址，只要VXLAN隧道两端VTEP IP是路由可达的，VXLAN隧道就可以建立成功。</p>
+<p>如下图所示，Switch1上部署了Host2和Host3，Switch2上部署了Host1。为了实现各主机之间互相通信，需要建立VXLAN隧道。</p>
+<p>VXLAN隧道建立情况分以下两种：</p>
+<ul>
+<li>由于Host1与Host2有着相同的业务需求，则将其规划为同一网段，需要在Switch1与Switch2上配置相同的VNI，属于同一VNI的主机处于同一个逻辑二层网络，彼此之间可以直接通过VXLAN隧道实现二层互联。为了实现Host1与Host2进行通信，需要在Switch1和Switch2上手动配置VNI和VTEP IP地址，只要Switch1和Switch2上两端VTEP IP是路由可达的，就可以建立到对端的VXLAN隧道。</li>
+<li>由于Host1与Host3业务需求不同，则将其规划为不同网段，需要在Switch1与Switch2上配置不同的VNI，属于不同VNI的主机之间不能直接进行VXLAN二层互联，需要经过VXLAN三层网关。为了实现Host1与Host3进行通信，需要分别在Switch1和Switch3以及Switch2和Switch3之间静态配置VNI和VTEP地址，只要Switch1和Switch3上两端VTEP IP是路由可达的，就可以建立到对端的VXLAN隧道；同样的，只要Switch2和Switch3上两端VTEP IP是路由可达的，就可以建立到对端的VXLAN隧道。</li>
+</ul>
+<p><img src="/images/4.6.png" alt=""></p>
+<h4 id="2-3-3-报文转发"><a href="#2-3-3-报文转发" class="headerlink" title="2.3.3 报文转发"></a>2.3.3 报文转发</h4><p>VXLAN将二层网络报文封装为VXLAN格式的报文，可以跨传统的三层网络进行传输，使得用户能够在三层网络之上构建逻辑的大二层网络。</p>
+<h5 id="MAC地址学习"><a href="#MAC地址学习" class="headerlink" title="MAC地址学习"></a>MAC地址学习</h5><p>在VXLAN网络中，为了实现用户的互通，支持MAC地址动态学习。下图详细介绍同子网主机互通时MAC地址学习过程。由于是首次进行通信，PC_1上没有PC_2的MAC地址，所以会发送ARP广播报文请求PC_2的MAC地址。</p>
+<p><img src="/images/4.7.png" alt=""></p>
+<p>ARP请求报文的转发流程如下：</p>
+<ol>
+<li>PC_1发送源MAC为MAC_1、目的MAC为全F、源IP为IP_1、目的IP为IP_2的ARP广播报文，请求PC_2的MAC地址。</li>
+<li>Switch1收到来自PC_1发出的ARP请求后，根据报文接入端口的配置判断报文需要进入VXLAN隧道。由于接入端口的配置与BD是1:1的映射关系，因此就确定了报文所属BD，同时，也就确定了报文所属的VNI。然后，VTEP1学习MAC_1、VNI和报文入接口的对应关系，并记录在本地MAC表中。之后，VTEP1根据对应的BD获取对应VNI的隧道列表，对报文进行复制并分别进行封装。封装的外层源IP地址为源端VTEP1的IP地址，外层目的IP地址为目的端VTEP2和VTEP3的IP地址；外层源MAC地址为源端VTEP1的MAC地址，而外层目的MAC地址为去往目IP的网络中下一跳设备的MAC地址。封装后的报文，根据外层MAC和IP信息，在网络中进行传输，直至到达对端VTEP2/VTEP3。</li>
+<li>Switch2/Switch3上VTEP2和VTEP3收到VXLAN报文后对报文进行解封装，得到PC_1发送的原始报文。同时，VTEP2和VTEP3学习PC_1的MAC地址、VNI和远端VTEP的IP地址的对应关系，并记录在本地MAC表中。之后，VTEP2和VTEP3根据接口上的配置对报文进行相应的处理并在对应的二层域内广播。</li>
+<li>PC_2和PC_3接收到ARP请求后，判断报文中的目的IP地址是否为本机的IP地址。如果目的IP不是本机IP，则将报文丢弃；如果目的IP是本机IP，则对ARP请求做出应答。</li>
+</ol>
+<p><img src="/images/4.8.png" alt=""></p>
+<p>如上图所示，ARP应答报文的转发流程如下：</p>
+<ol>
+<li>由于PC_2学习到PC_1的MAC地址，所以ARP应答报文为单播报文。报文源MAC为MAC_2，目的MAC为MAC_1，源IP为IP_2、目的IP为IP_1。</li>
+<li>VTEP2收到ARP应答报文后，识别报文所属VNI。同时，VTEP2学习MAC_2、VNI和报文入接口的对应关系，并记录在本地MAC表中。之后，VTEP2对报文进行封装。封装的外层源IP地址为源端VTEP2的IP地址，外层目的IP地址为目的端VTEP1的IP地址；外层源MAC地址为源端VTEP2的MAC地址，而外层目的MAC地址为去往目IP的网络中下一跳设备的MAC地址。封装后的报文，根据外层MAC和IP信息，在网络中进行传输，直至到达对端VTEP1。</li>
+<li>报文到达VTEP1后，VTEP1对报文进行解封装，得到PC_2发送的原始报文。同时，VTEP1学习PC_2的MAC地址、VNI和远端VTEP2的IP地址的对应关系，并记录在本地MAC表中。之后，VTEP1将解封装后的报文发送给PC_1。PC_1和PC_2均已学习到了对方的MAC地址，之后，PC_1和PC_2将采用单播方式进行通信。</li>
+</ol>
+<h5 id="同子网报文转发"><a href="#同子网报文转发" class="headerlink" title="同子网报文转发"></a>同子网报文转发</h5><p>根据报文中包含的目的MAC地址类型，报文转发流程分为已知单播报文转发和BUM（Broadcast&amp;Unknown-unicast&amp;Multicast）报文转发两部分。</p>
+<ul>
+<li><p>已知单播报文转发流程</p>
+<p>  已知单播报文转发流程如图下所示。<br>  <img src="/images/4.9.png" alt=""></p>
+<ol>
+<li>Switch1收到来自PC_1的报文，根据报文中接入的端口和VLAN信息获取对应的二层广播域，并在该二层广播域内查找出接口和封装信息。</li>
+<li>Switch1上VTEP1根据查找到的封装信息对数据报文进行VXLAN封装，然后根据查找到的出接口进行报文转发。</li>
+<li>Switch2上VTEP2收到VXLAN报文后，根据UDP目的端口号、源/目的IP地址、VNI判断VXLAN报文的合法有效性。然后依据VNI获取对应的二层广播域，进行VXLAN解封装，获取内层的二层报文。</li>
+<li>Switch2根据内层二层报文的目的MAC，从本地MAC表找到对应的出接口和封装信息，为报文添加VLAN Tag，转发给对应的主机PC_2。</li>
+</ol>
+</li>
+<li><p>BUM报文转发流程</p>
+<p>  当BUM报文进入VXLAN隧道，源端VTEP依据获取的隧道列表对报文进行复制，并分别进行封装。BUM报文出VXLAN隧道，目的端VTEP对报文解封装。BUM报文的转发流程如图下所示。</p>
+<blockquote>
+<p>说明：<br> 隧道列表：在VXLAN网络中，同一个VNI可以配置多个目的端VTEP的IP地址，这些目的端VTEP的IP地址可以看作隧道列表。接口收到BUM报文，源端VTEP将收到的BUM报文根据隧道列表进行复制并分别进行封装，最后发送给属于同一个VNI的所有VTEP</p>
+</blockquote>
+<p>  <img src="/images/4.10.png" alt=""></p>
+<ol>
+<li>Switch1收到来自PC_1发出的报文，根据报文中接入的端口和VLAN信息获取对应的二层广播域。</li>
+<li>Switch1上VTEP1根据对应的二层广播域获取对应VNI的隧道列表，依据获取的隧道列表进行报文复制，并进行VXLAN封装。然后将封装后的报文从出接口转发出去。</li>
+<li>Switch2/Switch3上VTEP2/VTEP3收到VXLAN报文后，根据UDP目的端口号、源/目的IP地址、VNI判断VXLAN报文的合法有效性。然后依据VNI获取对应的二层广播域，进行VXLAN解封装，获取内层二层报文。</li>
+<li>Switch2/Switch3检查内层二层报文的目的MAC，发现是BUM MAC，在对应的二层广播域内的非VXLAN隧道侧进行广播处理，即：Switch2/Switch3分别从本地MAC表中找到非VXLAN隧道侧的所有出接口和封装信息，为报文添加VLAN Tag，转发给对应的PC_2/PC_3。</li>
+</ol>
+</li>
+</ul>
+<h5 id="跨子网报文转发"><a href="#跨子网报文转发" class="headerlink" title="跨子网报文转发"></a>跨子网报文转发</h5><p>VXLAN为站点内的用户提供三层业务时，需要在网络中部署VXLAN三层网关，以便站点内的用户通过三层网关与外界网络或其他VXLAN网络内的用户进行三层通信。跨子网报文转发的流程如下图所示。<br>由于是首次进行通信，且PC_1和PC_2处于不同的网段，PC_1需要先发送ARP广播报文请求网关VBDIF10的MAC，获得网关的MAC后，PC_1先将数据报文发送给网关；之后网关也将发送ARP广播报文请求PC_2的MAC，获得PC_2的MAC后，网关再将数据报文发送给PC_2。以上MAC地址学习流程与MAC地址学习的流程一致。</p>
+<p><img src="/images/4.11.png" alt=""></p>
+<ol>
+<li>Switch1收到来自PC_1的报文，根据报文中接入的端口和VLAN信息获取对应的二层广播域，在对应的二层广播域内查找出接口和封装信息。</li>
+<li>Switch1上VTEP1根据查找到的出接口和封装信息进行VXLAN封装，向Switch3转发报文。</li>
+<li>Switch3收到VXLAN报文后进行解封装，发现内层报文中的目的MAC是三层网关接口VBDIF10的MAC地址MAC_3，判断需要进行三层转发。</li>
+<li>Switch3剥除内层报文的以太封装，解析目的IP。根据目的IP查找路由表，找到目的IP的下一跳地址，再根据下一跳地址查找ARP表项，获取目的MAC、VXLAN隧道出接口及VNI等信息。</li>
+<li>Switch3重新封装VXLAN报文，向Switch2转发。其中内层报文以太头中的源MAC是三层网关接口VBDIF20的MAC地址MAC_4。</li>
+<li>Switch2上VTEP2收到VXLAN报文后，根据UDP目的端口号、源/目的IP地址、VNI判断VXLAN报文的合法有效性。依据VNI获取对应的二层广播域，然后进行VXLAN解封装，获取内层二层报文，并在对应的二层广播域内查找出接口和封装信息。</li>
+<li>Switch2根据查找到的出接口和封装信息，为报文添加VLAN Tag，转发给对应的PC_2。</li>
+</ol>
+<h3 id="2-4-VXLAN-QoS"><a href="#2-4-VXLAN-QoS" class="headerlink" title="2.4 VXLAN QoS"></a>2.4 VXLAN QoS</h3><p>VXLAN QoS用来实现原始报文携带的QoS优先级、设备内部优先级（又称为本地优先 级，是设备内部区分报文服务等级的优先级）与封装后报文优先级之间的转换，从而 可以依据原始报文提供有差别的QoS服务。</p>
+<p><img src="/images/4.12.png" alt=""></p>
+<p>上图，VXLAN QoS实现的原始报文携带的QoS优先级、设备内部优先级与封装后报文优先级之间的转换过程如下。</p>
+<ol>
+<li>原始报文由二层子接口进入Switch1设备，原始报文按照主接口上绑定的DiffServ模板进行映射，将原始报文的802.1p优先级映射为设备内部优先级（PHB行为和报文颜色），以此入队列。<br>2.报文进入隧道，对报文进行封装，封装报文外层的802.1p优先级和DSCP优先级由原始报文内部优先级按照DiffServ域的缺省模板进行映射。报文按照映射后的优先级在隧道中进行传输。</li>
+<li>报文出隧道时，根据隧道接口上配置的信任类型802.1p或DSCP（以太网接口处于三层模式时只能信任DSCP），按照DiffServ域的缺省模板进行映射，映射为设备内部优先级，进入队列进行传输。</li>
+<li>最后，由设备内部优先级按照主接口上绑定的DiffServ域模板进行映射，映射到出接口报文的802.1p优先级，报文按照映射后的优先级进行传输。</li>
+</ol>
+<p>对于接入侧设备为S6720S-EI或S6720EI时，原始报文的DSCP值出方向不支持映射，入方向根据配置进行正常映射，其他映射规则如下表。</p>
+<table>
+<thead>
+<tr>
+<th>VXLAN网络接入侧接入方式</th>
+<th>映射规则</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>基于VLAN接入VXLAN网络</td>
+<td>入方向：根据报文的802.1p以及该接口上配置的DiffServ域进行映射。<br> 出方向：根据接口上配置的DiffServ域修改报文的802.1p。</td>
+</tr>
+<tr>
+<td>基于流封装类型接入VXLAN网络且封装类型为default</td>
+<td>入方向：若报文不携带VLAN TAG，则根据报文所属主端口上通过port priority priority-value命令配置的优先级值以及该接口上配置的DiffServ域进行映射；若报文携带VLAN TAG，则根据报文的802.1p以及接口上配置的DiffServ域进行映射。<br>出方向：不修改报文的802.1p。</td>
+</tr>
+<tr>
+<td>基于流封装类型接入VXLAN网络且封装类型为untag</td>
+<td>入方向：根据报文所属主端口上通过port priority priority-value命令配置的优先级值以及接口上配置的DiffServ域进行映射。<br>出方向：不修改报文的802.1p。</td>
+</tr>
+<tr>
+<td>基于流封装类型接入VXLAN网络且封装类型为dot1q</td>
+<td>入方向：根据报文的802.1p以及该接口上配置的DiffServ域进行映射。<br>出方向：根据接口上配置的DiffServ域修改报文的802.1p。</td>
+</tr>
+<tr>
+<td>基于流封装类型接入VXLAN网络且封装类型为qinq</td>
+<td>入方向：根据报文外层的802.1p以及接口上配置的DiffServ域进行映射。<br>出方向：根据接口上配置的DiffServ域修改报文外层的802.1p。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-应用场景"><a href="#3-应用场景" class="headerlink" title="3 应用场景"></a>3 应用场景</h2><h3 id="3-1-通过VXLAN在园区上构建虚拟数据中心网络"><a href="#3-1-通过VXLAN在园区上构建虚拟数据中心网络" class="headerlink" title="3.1 通过VXLAN在园区上构建虚拟数据中心网络"></a>3.1 通过VXLAN在园区上构建虚拟数据中心网络</h3><p>某企业已经建成比较成熟的园区网络，但是没有专用的数据中心网络，所有的服务器分布在不同的部门，并且不具备集中放置的条件，不同地域之间的服务器依靠园区网络互联。通过VXLAN技术，在园区网络之上构建虚拟的数据中心网络，实现资源整合和业务灵活部署。为了方便管理与维护，将具有同一业务需求的VM规划为同一网段，不同业务需求的VM规划为不同网段。例如：研发部门的VM之间需要互通，属于同网段互通；研发部和市场部的VM之间需要互通，属于不同网段互通。</p>
+<p><img src="/images/4.13.png" alt=""></p>
+<p>VXLAN提供数据中心网络之间的二层通信。如上图所示，研发部门的VM之间进行互通时，Switch1与Switch2作为VXLAN二层网关，二者之间建立VXLAN隧道，实现同网段终端用户互通。<br>VXLAN提供数据中心网络之间的三层通信。例如：研发部与市场部进行互通时，Switch3作为VXLAN三层网关，分别与Switch1和Switch2建立VXLAN隧道，通过VXLAN三层网关实现不同网段终端用户互通。<br>在Switch上静态配置VXLAN隧道后，VXLAN网络中MAC地址表项、ARP表项等信息流表均可动态学习得到。所有表项建立好后，通过VXLAN隧道，实现同网段与不同网段终端用户互通。</p>
+<h3 id="3-2-数据中心网络与园区网络互访"><a href="#3-2-数据中心网络与园区网络互访" class="headerlink" title="3.2 数据中心网络与园区网络互访"></a>3.2 数据中心网络与园区网络互访</h3><p>如下图所示，企业的研发部通过VM部署，市场部通过传统网络部署，在日常工作中，数据中心网络与园区网络有互访的需求。</p>
+<p><img src="/images/4.14.png" alt=""></p>
+<p>上图所示，数据中心网络和传统网络的边缘设备中Switch2与Switch1作为VXLAN二层网关，Switch3作为VXLAN三层网关，Switch3分别与Switch1和Switch2建立VXLAN隧道，通过VXLAN隧道进行VXLAN报文传输。</p>
+<p>市场部向研发部VM1发送报文的流程如下：</p>
+<ol>
+<li>Switch1收到传统网络的报文后，将该报文封装成VXLAN报文，发送给Switch3。</li>
+<li>Switch3收到VXLAN报文后进行解封装，剥除内层报文的以太封装，解析目的IP，根据目的IP查找路由表，找到目的IP的下一跳地址，再根据下一跳地址查找ARP表项，确认目的MAC、VXLAN隧道出接口及VNI等信息。</li>
+<li>查找到VXLAN隧道出接口及VNI信息后，Switch3重新封装VXLAN报文，发送给Switch2。</li>
+<li>根据报文中目的MAC，Switch2查找到出端口信息后，将报文发送给对应的VM。</li>
+</ol>
+<h3 id="3-3-通过VXLAN实现虚拟机平滑迁移"><a href="#3-3-通过VXLAN实现虚拟机平滑迁移" class="headerlink" title="3.3 通过VXLAN实现虚拟机平滑迁移"></a>3.3 通过VXLAN实现虚拟机平滑迁移</h3><p>为了实现业务的灵活变更，虚拟机动态迁移已经成为了数据中心网络中的一个常态性业务。虚拟机动态迁移是指在保证虚拟机正常运行的同时，将虚拟机从一个物理服务器移动到另一个物理服务器的过程，即平滑迁移。该过程对于最终用户来说是无感知的，管理员在不影响用户正常使用的情况下可以灵活调配服务器资源或者对物理服务器进行维护和升级。</p>
+<p>虚拟机动态迁移的关键是要保证在迁移时，虚拟机上的业务不会中断，这就要求虚拟机的IP地址、MAC地址等参数保持不变，所以虚拟机的迁移只能在同一个二层域内进行，而不能跨二层域迁移。如下图所示，某企业在数据中心中有两个Server，其中研发部和市场部都在Server1上，财务部在Server2上。由于Server1上显示计算空间不足，而Server2未充分利用，网络管理员需要将研发部迁移到Server2上，并且不影响业务。</p>
+<p><img src="/images/4.15.png" alt=""></p>
+<p>为了实现将研发部迁移到Server2，可以采用VXLAN技术，在不感知当前物理网络的情况下，能够在任意路由可达的网络上叠加二层虚拟网络。通过将研发部VM发出的原始报文进行封装后通过VXLAN隧道进行传输，隧道两端的VM不需感知传输网络的物理架构。这样，对于具有同一网段IP地址的VM而言，即使其物理位置不在同一个二层网络中，但从逻辑上来看，相当于处于同一个二层域。</p>
+<p>研发部迁移流程如下：</p>
+<ol>
+<li>研发部从Server1迁移到Server2。</li>
+<li>研发部对应的VM发送免费ARP报文或RARP报文告知Switch2和其他设备。</li>
+<li>Switch1学习到VM的免费ARP报文或RARP报文后，删除老的MAC地址表和ARP表，更新为迁移后的VM对应的MAC地址表和ARP表。</li>
+</ol>
+<p>研发部从Server1迁移到Server2后，VM会发送免费ARP或RARP报文，所有网关设备上保存的原VM对应的MAC地址表和ARP表都将会被删除，更新为迁移后的VM对应的MAC地址表和ARP表。</p>
+<h2 id="4-配置注意事项"><a href="#4-配置注意事项" class="headerlink" title="4 配置注意事项"></a>4 配置注意事项</h2><h3 id="特性依赖和限制"><a href="#特性依赖和限制" class="headerlink" title="特性依赖和限制"></a>特性依赖和限制</h3><p>在交换机上部署VXLAN功能时，需要注意：</p>
+<ul>
+<li>在配置VXLAN二层子接口的封装类型为qinq或dot1q时，设备在VCMP管理域中的角色不能为Client，可以通过命令vcmp role { server | silent | transparent }配置设备在VCMP管理域中为其他角色，或者通过命令vcmp disable在接口下去使能VCMP功能。</li>
+<li>VXLAN隧道不支持叠加MPLS LSP隧道。VTEP（VXLAN Tunnel Endpoints）节点收到对端发送来的VXLAN报文不能有MPLS封装，否则无法进行解封装。</li>
+<li>VXLAN隧道不支持叠加GRE隧道。VTEP节点收到对端发送来的VXLAN报文不能有GRE封装，否则无法进行解封装。</li>
+<li>设备从VXLAN隧道的对端收到VXLAN报文，如果设备创建了VXLAN报文包含的VNI（VXLAN Network Identifier），但是没有绑定VNI到本设备的VXLAN隧道时，设备依然可以对收到的VXLAN报文进行解封装和转发。但此时VTEP接入的业务只能实现单方向通，业务不能正常运转。</li>
+<li>VXLAN接入侧接口配置接口的QinQ报文外层VLAN Tag的TPID值时，对进入VXLAN网络转发的流量不生效。</li>
+<li>若VXLAN网络接入侧为VXLAN二层子接口，且配置的封装类型为default时，只能同配置封装类型为default的二层子接口互通。</li>
+<li>MTU（Maximum Transmission Unit）称为最大传输单元，MTU的大小决定了发送端一次能够发送报文的最大字节数。报文进入VXLAN隧道会增加50个字节的长度，交换机不支持在报文进入VXLAN隧道时对报文分片，若报文超过接口的MTU值时，报文也可以正常转发。</li>
+<li>报文进入VXLAN隧道会增加50个字节的长度，因此VXLAN报文在隧道转发过程中可能超过转发路径中设备设定的MTU值，报文会被转发路径中的设备进行分片处理。S6720EI和S6720S-EI不支持对分片的VXLAN报文进行重组和解封装，若VXLAN隧道侧设备为S6720EI和S6720S-EI时，建议调小数据源端发出报文的大小，确保报文在网络中不会被分片，或者调大VXLAN报文转发路径上转发设备的MTU值，使得VXLAN报文在转发过程中不会被分片。</li>
+<li>对于S6720EI和S6720S-EI，如果接入VXLAN的接口同时还作为组播流入接口，会导致相应组播数据无法正常转发。</li>
+<li>对于S6720EI和S6720S-EI，不支持目的UDP端口号为4789的数据报文进入VXLAN隧道。<br>对于S6720EI和S6720S-EI，若多个VXLAN隧道公用一个隧道侧接口，并且隧道侧接口为VLANIF接口时，这些隧道必须使用同一个VLANIF接口来进行报文转发，否则会引起转发异常。</li>
+<li>设备在VXLAN隧道建立下发隧道表时存在因表项hash冲突而下发失败的情况，当下发失败时会触发告警ADPVXLAN_1.3.6.1.4.1.2011.5.25.227.2.1.42 hwVxlanTnlCfgFailed，此时建议用户调整VNI ID的配置，重新配置VXLAN隧道。</li>
+</ul>
+<h2 id="5-配置VXLAN"><a href="#5-配置VXLAN" class="headerlink" title="5 配置VXLAN"></a>5 配置VXLAN</h2><h3 id="5-1-配置VXLAN接入业务部署方式"><a href="#5-1-配置VXLAN接入业务部署方式" class="headerlink" title="5.1 配置VXLAN接入业务部署方式"></a>5.1 配置VXLAN接入业务部署方式</h3><h4 id="前置任务"><a href="#前置任务" class="headerlink" title="前置任务"></a>前置任务</h4><p>在配置用户通过VXLAN隧道互通之前，需配置网络路由可达。</p>
+<h4 id="配置流程"><a href="#配置流程" class="headerlink" title="配置流程"></a>配置流程</h4><p>通过VXLAN在园区上构建虚拟数据中心网络实现二层互通与三层互通的配置流程分别如下图所示。</p>
+<p><img src="/images/4.16.png" alt=""><br>通过VXLAN在园区上构建虚拟数据中心网络（二层互通）的配置流程图 </p>
+<p><img src="/images/4.17.png" alt=""><br> 通过VXLAN在园区上构建虚拟数据中心网络（三层互通）的配置流程图 </p>
+<h3 id="5-1-配置VXLAN接入业务部署方式-1"><a href="#5-1-配置VXLAN接入业务部署方式-1" class="headerlink" title="5.1 配置VXLAN接入业务部署方式"></a>5.1 配置VXLAN接入业务部署方式</h3><h4 id="背景信息"><a href="#背景信息" class="headerlink" title="背景信息"></a>背景信息</h4><p>在设备上部署VXLAN网络时，需要对下行接入业务进行选择部署。</p>
+<p>针对接入业务侧的部署，有两种方式:</p>
+<ul>
+<li>基于VLAN方式：将一个或多个VLAN与BD进行关联，实现将指定VLAN内的用户加入BD。该方式控制粒度较粗，但配置简单，适合在现网上直接进行部署。</li>
+<li>基于报文流封装类型：根据报文携带VLAN Tag的情况，将不同流封装类型的报文送到不同的二层子接口，并将二层子接口与BD进行绑定，以实现将指定用户加入到BD。该方式控制粒度较细且较为灵活，但配置复杂，适合在新建网上进行部署。</li>
+</ul>
+<h4 id="操作步骤"><a href="#操作步骤" class="headerlink" title="操作步骤"></a>操作步骤</h4><ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>（可选）执行命令<code>set vxlan resource super-mode</code>，配置VXLAN的大规格模式。缺省情况下，设备支持配置的BD域规格为4096。配置为大规格模式后支持配置的BD域规格为16000。<blockquote>
+<p>说明：</p>
+<ul>
+<li>配置VXLAN的大规格模式后需要保存配置并重启设备才能生效。</li>
+<li>当配置为VXLAN的大规格模式时，可能导致部分业务转发性能下降。如：IP组播业务、VPLS业务、VLAN Mapping业务、VLAN Stacking业务、以及子接口三层转发业务。</li>
+</ul>
+</blockquote>
+</li>
+<li>执行命令<code>bridge-domain *bd-id*</code>，创建广播域BD，并进入BD视图。 缺省情况下，没有创建广播域BD。</li>
+<li>（可选）执行命令<code>description *description*</code>，配置BD的描述信息。 缺省情况下，未配置BD的描述信息。</li>
+<li><p>执行命令<code>quit</code>，退出BD视图，返回到系统视图。</p>
+<ul>
+<li><p>配置业务接入点接入业务：</p>
+<ol>
+<li>执行命令<code>vlan *vlan-id*</code>，创建VLAN并进入VLAN视图。</li>
+<li>执行命令<code>quit</code>，退出VLAN视图，返回到系统视图。</li>
+<li>执行命令<code>bridge-domain *bd-id*</code>，进入已经创建的BD视图。</li>
+<li>执行命令<code>l2 binding vlan *vlan-id*</code>，将指定VLAN与BD相关联，实现数据报文在BD内进行转发。缺省情况下，VLAN与BD无关联。<blockquote>
+<p>说明：</p>
+<ul>
+<li>绑定到BD的VLAN必须已经创建。</li>
+<li>一个VLAN只能绑定一个BD，但是一个BD可以绑定多个VLAN。</li>
+<li>将全局VLAN与BD相关联后，需要将设备上相关接口加入该VLAN。</li>
+<li>若VLAN被指定为Voice VLAN后，该VLAN将不能与BD进行关联。</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+</li>
+<li><p>基于报文流封装类型:</p>
+<ol>
+<li>执行命令<code>interface *interface-type interface-number*</code>，进入需要创建二层子接口的主接口视图。</li>
+<li>执行命令<code>port link-type {trunk | hybrid}</code>，配置接口的链路类型为<code>trunk或者hybrid</code>。</li>
+<li>执行命令<code>quit</code>，返回系统视图。</li>
+<li>执行命令<code>interface *interface-type interface-number.subnum* mode l2</code>，创建二层子接口，并进入二层子接口视图。</li>
+<li>执行命令<code>encapsulation {dot1q vid *pe-vid* | default | untag | qinq vid *vlan-vid* ce-vid *ce-vid*}</code>，配置二层子接口允许通过的流封装类型，实现不同的接口接入不同的数据报文。缺省情况下，二层子接口没有配置允许通过的流封装类型。</li>
+<li>执行命令<code>bridge-domain *bd-id*</code>，将指定二层子接口与BD相关联，实现数据报文在BD内进行转发。缺省情况下，二层子接口与BD无关联。<blockquote>
+<p>说明：<br>配置二层子接口允许通过的流封装类型时，需要注意以下几点：</p>
+<ul>
+<li>二层子接口封装的<code>dot1q</code>的VLAN与<code>qinq</code>的外层VLAN，不能与对应主接口允许通过的VLAN相同，也不能与全局VLAN相同。</li>
+<li>在同一个主接口下，<code>dot1q</code>的VLAN与<code>qinq</code>的外层VLAN互斥。</li>
+<li>二层子接口下配置流封装类型为<code>default</code>时，必须确保对应的主接口没有加入任何VLAN，包括VLAN 1。</li>
+<li>二层子接口下配置流封装类型为<code>default</code>前，主接口下有且仅有一个子接口。</li>
+<li>二层子接口下配置流封装类型为<code>default</code>后，该主接口下不能再创建其他子接口。</li>
+<li>二层子接口下配置流封装类型为<code>untag</code>时，该主接口下不能在其他子接口下配置<code>untag</code>。</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p>公子青注： 本文因使用markdown编辑，关键字部分如 *vlan-id* 代表斜体格式，即 用户自定义参数部分（非命令字）。</p>
+</blockquote>
+<h3 id="5-2-配置VXLAN隧道"><a href="#5-2-配置VXLAN隧道" class="headerlink" title="5.2 配置VXLAN隧道"></a>5.2 配置VXLAN隧道</h3><h4 id="背景信息-1"><a href="#背景信息-1" class="headerlink" title="背景信息"></a>背景信息</h4><p>在设备上部署VXLAN网络时，需要对上行VXLAN隧道建立部署。</p>
+<p>VXLAN隧道是通过隧道两端的VTEP的IP地址建立的，所以需要在隧道两端的设备上分别配置源端VTEP与目的端VTEP的IP地址。</p>
+<p>如下图所示，以Switch1为例，详细介绍VXLAN隧道所需配置。</p>
+<ul>
+<li>VXLAN隧道源端VTEP的IP地址：VXLAN报文中源IP地址，即Switch1的GE1/0/1的IP地址。</li>
+<li>VXLAN隧道目的端VTEP的IP地址：VXLAN报文中目的IP地址，即Switch2的GE1/0/1的IP地址。</li>
+</ul>
+<p><img src="/images/4.18.png" alt=""></p>
+<h4 id="操作步骤-1"><a href="#操作步骤-1" class="headerlink" title="操作步骤"></a>操作步骤</h4><ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>bridge-domain *bd-id*</code>，进入BD视图。</li>
+<li>执行命令<code>vxlan vni *vni-id*</code>，配置BD所对应的VXLAN的VNI。 缺省情况下，没有配置BD所对应的VXLAN的VNI。</li>
+<li>执行命令<code>quit</code>，退出BD视图，返回到系统视图。</li>
+<li>执行命令<code>interface nve *nve-number*</code>，创建NVE接口，并进入NVE接口视图。 </li>
+<li>执行命令<code>source *ip-address*</code>，配置VXLAN隧道源端VTEP的IP地址。 缺省情况下，VXLAN隧道源端VTEP没有配置IP地址。</li>
+<li>执行命令<code>vni *vni-id* head-end peer-list *ip-address &amp;&lt;1-10&gt;*</code>，配置指定VNI的VXLAN隧道目的端VTEP的IP地址。 缺省情况下，未指定VNI的VXLAN隧道目的端VTEP的IP地址。</li>
+<li>执行命令<code>quit</code>，退出NVE接口视图，返回到系统视图。<blockquote>
+<p>说明：</p>
+<ul>
+<li>即使源端VTEP对应一个目的端VTEP，也需要执行命令<code>vni head-end peer-list</code>指定对应的VTEP地址。</li>
+<li>执行命令<code>ping</code>，检查隧道两端设备路由是否可达。当隧道两端设备路由可达时，隧道能建立成功并可以正常转发报文。若隧道两端仅存在到对方的路由，且路由不可达时，隧道仍然能UP，但是不能完成报文转发。</li>
+<li>若隧道侧通过静态路由转发，建议同时配置静态路由和BFD的联动，这样当链路出现故障时可以及时删除路由。避免存在不可达路由但隧道仍然UP，导致的VXLAN报文丢包。</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+<h3 id="5-3-配置VXLAN三层网关"><a href="#5-3-配置VXLAN三层网关" class="headerlink" title="5.3 配置VXLAN三层网关"></a>5.3 配置VXLAN三层网关</h3><h4 id="背景信息-2"><a href="#背景信息-2" class="headerlink" title="背景信息"></a>背景信息</h4><p>VBDIF接口在VXLAN三层网关上配置，用于跨网段报文的转发，因此同网段通信时不需要配置。</p>
+<p>VXLAN为站点内的用户提供三层业务时，需要在网络中部署VXLAN三层网关，以便站点内的用户通过VXLAN三层网关与外界网络或其他VXLAN网络内的用户进行三层通信。</p>
+<p>如下图所示，基于BD可创建三层逻辑接口VBDIF接口，每个BD对应一个VBDIF接口，在为VBDIF接口配置IP地址后，该接口即可作为本BD内租户的网关，对需要进行通信的报文进行基于IP地址的三层转发。<br>为了实现不同网段的终端用户互通，终端用户的缺省网关地址必须是对应VXLAN三层网关上的VBDIF接口的IP地址。</p>
+<p><img src="/images/4.19.png" alt=""></p>
+<h4 id="操作步骤-2"><a href="#操作步骤-2" class="headerlink" title="操作步骤"></a>操作步骤</h4><ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>interface vbdif *bd-id*</code>，创建VBDIF接口，并进入VBDIF接口视图。<blockquote>
+<p>说明：</p>
+<ul>
+<li>VBDIF接口的编号必须对应一个已经存在的ID的BD。</li>
+<li>对于S6720EI和S6720S-EI，设备通过命令assign resource-mode配置资源模式为96k-arp模式时，不支持对VXLAN报文进行三层转发。</li>
+</ul>
+</blockquote>
+</li>
+<li>执行命令<code>ip address *ip-address* { mask | mask-length } [ sub ]</code>，配置VBDIF接口的IP地址，实现三层互通。缺省情况下，在VBDIF接口上没有配置IP地址。</li>
+<li>执行命令<code>quit</code>，退出VBDIF接口视图，返回到系统视图。</li>
+</ol>
+<h4 id="后续处理"><a href="#后续处理" class="headerlink" title="后续处理"></a>后续处理</h4><p>在配置VXLAN三层网关时，对于S6720EI和S6720S-EI配置VXLAN环回接口后，设备才能对接收的VXLAN报文解封装后进行三层转发，因此对于S6720EI和S6720S-EI作为VXLAN三层网关设备时，需要配置Eth-Trunk接口作为VXLAN的环回接口。配置步骤如下：</p>
+<ol>
+<li>执行命令<code>interface eth-trunk *trunk-id*</code>，进入Eth-Trunk接口视图。</li>
+<li>执行命令<code>service type vxlan-tunnel</code>，配置Eth-trunk接口为VXLAN环回接口。缺省情况下，设备上Eth-Trunk接口未配置为VXLAN的环回接口。</li>
+<li>执行命令<code>trunkport *interface-type interface-number*</code>，将物理接口加入Eth-Trunk接口。<blockquote>
+<p>说明：</p>
+<ul>
+<li>配置Eth-Trunk接口为VXLAN环回接口后，Eth-Trunk接口将自动去使能STP，也不支持在此接口下配置STP相关命令。取消Eth-Trunk接口为VXLAN环回接口后，该Eth-Trunk接口将自动使能STP功能。</li>
+<li>交换机上只能配置一个Eth-Trunk接口作为VXLAN环回接口，所有VDBIF接口的VXLAN报文均通过该环回接口进行封装和解封装。</li>
+<li>当Eth-Trunk接口下存在成员端口时，该Eth-Trunk接口不能作为VXLAN环回接口。<br>若需要配置Eth-Trunk接口为环回接口时，该Eth-Trunk接口允许的配置有<code>description</code>、<code>enable snmp trap updown</code>、<code>jumboframe enable</code>、<code>qos phb marking enable、set flow-stat interval</code>、<code>shutdown</code>、<code>traffic-policy</code>（接口视图）和<code>trust</code>，若存在除此之外的配置时，该Eth-Trunk接口不能配置为环回接口。</li>
+<li>配置Eth-Trunk接口为环回接口后，该Eth-Trunk接口仅支持如下配置，<code>authentication open ucl-policy enable</code>、<code>description</code>、<code>enable snmp trap updown</code>、<code>jumboframe enable</code>、<code>mixed-rate link enable、qos phb marking enable</code>、<code>set flow-stat interval</code>、<code>shutdown</code>、<code>statistic enable</code>（接口视图）、<code>traffic-policy</code>（接口视图）、<code>vcmp disable和trust</code>。</li>
+<li>若要通过命令<code>undo service type vxlan-tunnel</code>取消Eth-Trunk接口作为VXLAN环回接口时，需先删除该Eth-Trunk接口下的所有成员接口。</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+<h3 id="5-4-（可选）配置BD内的流量抑制"><a href="#5-4-（可选）配置BD内的流量抑制" class="headerlink" title="5.4 （可选）配置BD内的流量抑制"></a>5.4 （可选）配置BD内的流量抑制</h3><h4 id="背景信息-3"><a href="#背景信息-3" class="headerlink" title="背景信息"></a>背景信息</h4><p>为了限制进入BD的广播、组播或未知单播报文的速率，防止广播风暴，可以在该BD内配置对应报文类型的流量抑制功能。</p>
+<h4 id="操作步骤-3"><a href="#操作步骤-3" class="headerlink" title="操作步骤"></a>操作步骤</h4><ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>bridge-domain *bd-id*</code>，创建广播域BD，并进入BD视图。</li>
+<li>配置BD内的流量抑制。请根据实际需要，选择如下配置： <ul>
+<li>执行命令<code>broadcast-suppression cir *cir-value* [ cbs *cbs-value* ]</code>，开启BD内广播流量抑制功能。<br>缺省情况下，BD内广播流量抑制功能处于关闭状态。</li>
+<li>执行命令<code>multicast-suppression cir *cir-value* [ cbs *cbs-value* ]</code>，开启BD内组播流量抑制功能。<br>缺省情况下，BD内组播流量抑制功能处于关闭状态。</li>
+<li>执行命令<code>unknown-unicast-suppression cir *cir-value* [ cbs *cbs-value* ]</code>，开启BD内未知单播流量抑制功能。缺省情况下，BD内未知单播流量抑制功能处于关闭状态。</li>
+</ul>
+</li>
+</ol>
+<h3 id="5-5-（可选）配置静态MAC地址表项"><a href="#5-5-（可选）配置静态MAC地址表项" class="headerlink" title="5.5 （可选）配置静态MAC地址表项"></a>5.5 （可选）配置静态MAC地址表项</h3><h4 id="背景信息-4"><a href="#背景信息-4" class="headerlink" title="背景信息"></a>背景信息</h4><p>设备通过源MAC地址学习并建立MAC地址表时，无法区分合法用户和非法用户的报文，为网络安全带来了隐患。如果非法用户将攻击报文的源MAC地址伪装成合法用户的MAC地址，并从设备的其他接口进入，设备就会学习到错误的MAC地址表项，于是就会将本应转发给合法用户的报文转发给非法用户。用户可以手工在VXLAN接入侧和隧道侧的MAC地址表中加入特定的MAC地址表项，将用户设备与接口绑定，从而防止仿冒身份的非法用户骗取数据。另外，手动配置静态MAC地址表项，可以有效指导报文进行单播转发，节省带宽。</p>
+<h4 id="操作步骤-4"><a href="#操作步骤-4" class="headerlink" title="操作步骤"></a>操作步骤</h4><ul>
+<li><p>配置VXLAN接入侧的静态MAC地址表项。</p>
+<ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>mac-address static *mac-address interface-type interface-number.subnum* bridge-domain *bd-id* { default | untag | vid *vlan-id1* [ cevid vlan-id2 ] }</code>，配置基于二层子接口接入VXLAN网络的接入侧设备的静态MAC地址表项。或者执行命令<code>mac-address static *mac-address interface-type interface-number* bridge-domain *bd-id* vid *vlan-id3*</code>，配置基于VLAN接入VXLAN网络的接入侧设备的静态MAC地址表项。<blockquote>
+<p>说明：<br>配置VXLAN接入侧设备的静态MAC地址表项时，需提前完成接入侧设备接入VXLAN网络的配置，并且配置的相应参数应同接入VXLAN网络的配置相一致。</p>
+</blockquote>
+</li>
+</ol>
+</li>
+<li><p>配置VXLAN隧道侧的静态MAC地址表项。</p>
+<ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>mac-address static *mac-address* bridge-domain *bd-id* source-*ip-address* peer *ip-address* vni *vni-id*</code>，配置VXLAN网络隧道侧设备的静态MAC地址表项。 <blockquote>
+<p>说明：<br>配置VXLAN隧道侧设备的静态MAC地址表项时，需提前完成VXLAN隧道的创建，并且配置的相应参数应同VXLAN隧道的配置相一致。</p>
+</blockquote>
+</li>
+</ol>
+</li>
+</ul>
+<h3 id="5-6-（可选）配置静态ARP表项"><a href="#5-6-（可选）配置静态ARP表项" class="headerlink" title="5.6 （可选）配置静态ARP表项"></a>5.6 （可选）配置静态ARP表项</h3><h4 id="背景信息-5"><a href="#背景信息-5" class="headerlink" title="背景信息"></a>背景信息</h4><p>静态ARP表项通过手工配置和维护，不会被老化，不会被动态ARP表项覆盖。所以在VXLAN三层网关上配置静态ARP表项可以增加通信的安全性。静态ARP表项可以限制和指定IP地址的设备通信时只使用指定的MAC地址，此时攻击报文无法修改此表项的IP地址和MAC地址的映射关系，从而保护了本设备和指定设备间的正常通信。</p>
+<h4 id="操作步骤-5"><a href="#操作步骤-5" class="headerlink" title="操作步骤"></a>操作步骤</h4><ul>
+<li><p>基于接口配置VXLAN静态ARP表项。</p>
+<ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>arp static *ip-address mac-address* bridge-domain *bd-id* [ vid *vlan-id1* [ cevid *vlan-id2* ] ] interface *interface-type interface-number.subnum*</code>，基于接口配置VXLAN二层子接口接入点的静态ARP表项，或者通过执行命令<code>arp static *ip-address mac-address* bridge-domain *bd-id* [ vid *vlan-id3* ] interface *interface-type interface-number*</code>，基于接口配置VXLAN的VLAN接入点的静态ARP表项。<blockquote>
+<p>说明：</p>
+<ul>
+<li>配置静态ARP表项时，如果此静态ARP表项已经存在，则不能重复配置。</li>
+<li>配置的ip-address必须和ARP表项的出接口的地址在同一个网段。</li>
+<li>配置参数<code>vid vlan-id</code>和<code>cevid vlan-id</code>时，需同接口封装类型的配置参数保持一致。</li>
+<li>在S6720EI和S6720S-EI上基于接口配置VXLAN静态ARP表项时，需要配置该ARP表项中MAC地址对应的静态MAC地址表项，否则当不存在该MAC地址表项时，到该MAC地址的用户流量将被广播。</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+</li>
+<li><p>基于隧道配置VXLAN静态ARP表项。</p>
+<ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>arp static *ip-address mac-address* vni *vni-id* source-ip *ip-address* peer-ip *ip-address*</code>，基于隧道配置VXLAN静态ARP表项。<blockquote>
+<p>说明：</p>
+<ul>
+<li>配置静态ARP表项时，如果此静态ARP表项已经存在，则不能重复配置。</li>
+<li>配置的ip-address必须和ARP表项的出接口的地址在同一个网段。</li>
+<li>配置基于隧道配置VXLAN静态ARP表项时，需提前完成相应的VXLAN隧道的创建。</li>
+</ul>
+</blockquote>
+</li>
+</ol>
+</li>
+</ul>
+<h3 id="5-7-检查配置结果"><a href="#5-7-检查配置结果" class="headerlink" title="5.7 检查配置结果"></a>5.7 检查配置结果</h3><h4 id="背景信息-6"><a href="#背景信息-6" class="headerlink" title="背景信息"></a>背景信息</h4><p>完成VXLAN业务接入点和VXLAN隧道配置后，执行以下命令可以查看配置信息。</p>
+<h4 id="操作步骤-6"><a href="#操作步骤-6" class="headerlink" title="操作步骤"></a>操作步骤</h4><ul>
+<li>执行命令<code>display bridge-domain [ *bd-id* [ brief | verbose ] ]</code>，查看BD的配置信息。</li>
+<li>执行命令<code>display vxlan tunnel [ *tunnel-id* ] [ verbose ]</code>，查看VXLAN隧道的信息。</li>
+<li>执行命令<code>display vxlan vni [ *vni-id* [ verbose ] ]</code>，查看VNI的VXLAN的配置信息。</li>
+<li>执行命令<code>display vxlan peer [ vni *vni-id* ]</code>，查看VNI的目的端VTEP的IP地址。</li>
+</ul>
+<h2 id="6-维护VXLAN"><a href="#6-维护VXLAN" class="headerlink" title="6 维护VXLAN"></a>6 维护VXLAN</h2><p>通过查看VXLAN报文统计信息，可以实时监控VXLAN网络的运行状况。当统计信息较多时，可以将这些统计信息清除。</p>
+<h3 id="6-1-统计VXLAN报文统计信息"><a href="#6-1-统计VXLAN报文统计信息" class="headerlink" title="6.1 统计VXLAN报文统计信息"></a>6.1 统计VXLAN报文统计信息</h3><h4 id="背景信息-7"><a href="#背景信息-7" class="headerlink" title="背景信息"></a>背景信息</h4><p>当需要检查网络状况或处理网络故障时，可以在设备上开启BD和VXLAN隧道的报文统计功能，统计并查看VXLAN报文的统计信息，根据获取的数据统计信息进行故障诊断。</p>
+<h4 id="操作步骤-7"><a href="#操作步骤-7" class="headerlink" title="操作步骤"></a>操作步骤</h4><ul>
+<li><p>开启BD内报文统计功能 </p>
+<ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>bridge-domain *bd-id*</code>，创建广播域BD，并进入BD视图。</li>
+<li>执行命令<code>statistics enable</code>，开启BD内报文统计功能。缺省情况下，BD内报文统计功能处于关闭状态。</li>
+</ol>
+</li>
+<li><p>开启VXLAN隧道报文统计功能 </p>
+<ol>
+<li>执行命令<code>system-view</code>，进入系统视图。</li>
+<li>执行命令<code>interface nve *nve-number*</code>，创建NVE接口，并进入NVE接口视图。</li>
+<li>执行命令<code>vxlan statistics peer *peer-ip-address* [ vni *vni-id* ] enable</code>，开启VXLAN隧道报文统计功能。缺省情况下，VXLAN隧道报文统计功能处于关闭状态。</li>
+</ol>
+</li>
+</ul>
+<h4 id="后续处理-1"><a href="#后续处理-1" class="headerlink" title="后续处理"></a>后续处理</h4><ul>
+<li>执行命令<code>display bridge-domain *bd-id* statistics</code>，查看BD内报文的统计信息。</li>
+<li>执行命令<code>display vxlan statistics source *source-ip-address* peer *peer-ip-address* [ vni *vni-id* ]</code>，查看VXLAN隧道报文的统计信息。</li>
+</ul>
+<h3 id="6-2-清除VXLAN报文统计信息"><a href="#6-2-清除VXLAN报文统计信息" class="headerlink" title="6.2 清除VXLAN报文统计信息"></a>6.2 清除VXLAN报文统计信息</h3><p>在确认需要清除统计信息后，请执行以下命令。</p>
+<h4 id="操作步骤-8"><a href="#操作步骤-8" class="headerlink" title="操作步骤"></a>操作步骤</h4><ul>
+<li>在用户视图下执行<code>reset bridge-domain *bd-id* statistics</code>，清除指定BD内流量统计信息。</li>
+<li>在用户视图下执行<code>reset vxlan statistics source *source-ip-address* peer *peer-ip-address* [ vni *vni-id* ]</code>，清除VXLAN隧道报文统计信息。</li>
+</ul>
+<h2 id="7-配置举例"><a href="#7-配置举例" class="headerlink" title="7 配置举例"></a>7 配置举例</h2><h3 id="7-1-通过VXLAN在园区上构建虚拟数据中心网络（二层互通）示例"><a href="#7-1-通过VXLAN在园区上构建虚拟数据中心网络（二层互通）示例" class="headerlink" title="7.1 通过VXLAN在园区上构建虚拟数据中心网络（二层互通）示例"></a>7.1 通过VXLAN在园区上构建虚拟数据中心网络（二层互通）示例</h3><h4 id="组网需求"><a href="#组网需求" class="headerlink" title="组网需求"></a>组网需求</h4><p>企业已经建成比较成熟的园区网络，但是没有专用的数据中心网络，所有的服务器分布在不同的部门，并且不具备集中放置的条件。现在用户希望在已有园区网络上构建一个虚拟的数据中心网络，需求如下：</p>
+<ul>
+<li>将散落在不同部门的服务器构建成一个虚拟网络，实现资源整合和业务灵活部署。</li>
+<li>各服务器上部署着大量的VM，相同业务的VM之间需要实现二层互通。</li>
+<li>各VM之间由于业务需求需要在服务器之间进行平滑迁移，且保证业务不中断。</li>
+</ul>
+<p>如下图所示，企业在不同的数据中心都拥有自己的VM，Server1与Server2上的VM1都属于VLAN 10，现需要通过VXLAN隧道实现相同业务的VM之间的二层互通。</p>
+<p><img src="/images/4.20.png" alt=""></p>
+<h4 id="数据准备"><a href="#数据准备" class="headerlink" title="数据准备"></a>数据准备</h4><table>
+<thead>
+<tr>
+<th>设备</th>
+<th>VXLAN隧道</th>
+<th>BD</th>
+<th>VNI</th>
+<th>Source IP</th>
+<th>Peer IP </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Switch1</td>
+<td>Switch1—&gt;Switch2</td>
+<td>10</td>
+<td>2010</td>
+<td>10.1.1.2</td>
+<td>10.2.2.2</td>
+</tr>
+<tr>
+<td>Switch2</td>
+<td>Switch2—&gt;Switch1</td>
+<td>10</td>
+<td>2010</td>
+<td>10.2.2.2</td>
+<td>10.1.1.2</td>
+</tr>
+</tbody>
+</table>
+<h4 id="配置思路"><a href="#配置思路" class="headerlink" title="配置思路"></a>配置思路</h4><p>采用如下思路配置同网段用户通过VXLAN隧道互通：</p>
+<ol>
+<li>分别在Switch1、Switch2、Switch3上配置路由协议，保证网络三层互通。</li>
+<li>分别在Switch1、Switch2上配置VXLAN接入业务部署方式。</li>
+<li>分别在Switch1、Switch2上配置VXLAN隧道。</li>
+</ol>
+<blockquote>
+<p>说明:<br>园区网络的三层互通是构建虚拟数据中心网络的基础条件，现网中，如果园区网络已经实现三层网络的互通，那么该举例中的步骤1可以省略。</p>
+</blockquote>
+<h4 id="操作步骤-9"><a href="#操作步骤-9" class="headerlink" title="操作步骤"></a>操作步骤</h4><ol>
+<li><p>配置路由协议</p>
+<ul>
+<li><p>配置Switch1各接口IP地址。Switch2和Switch3的配置与Switch1类似，这里不再赘述。配置OSPF时，注意需要发布设备上的32位Loopback接口地址。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">&lt;HUAWEI&gt; system-view</span><br><span class="line">[HUAWEI] sysname Switch1</span><br><span class="line">[Switch1] interface loopback 1</span><br><span class="line">[Switch1-LoopBack1] ip address 10.1.1.2 32</span><br><span class="line">[Switch1-LoopBack1] quit</span><br><span class="line">[Switch1] interface gigabitethernet 0/0/1</span><br><span class="line">[Switch1-GigabitEthernet0/0/1] undo portswitch</span><br><span class="line">[Switch1-GigabitEthernet0/0/1] ip address 192.168.2.1 24</span><br><span class="line">[Switch1-GigabitEthernet0/0/1] quit</span><br><span class="line">[Switch1] ospf</span><br><span class="line">[Switch1-ospf-1] area 0</span><br><span class="line">[Switch1-ospf-1-area-0.0.0.0] network 10.1.1.2 0.0.0.0</span><br><span class="line">[Switch1-ospf-1-area-0.0.0.0] network 192.168.2.0 0.0.0.255</span><br><span class="line">[Switch1-ospf-1-area-0.0.0.0] quit</span><br><span class="line">[Switch1-ospf-1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>OSPF成功配置后，Switch之间可通过OSPF协议发现对方的Loopback接口的IP地址，并能互相ping通。以Switch1 ping Switch2的显示为例。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">  [Switch1] ping 10.2.2.2</span><br><span class="line">PING 10.2.2.2: 56  data bytes, press CTRL_C to break</span><br><span class="line">  Reply from 10.2.2.2: bytes=56 Sequence=1 ttl=255 time=240 ms</span><br><span class="line">  Reply from 10.2.2.2: bytes=56 Sequence=2 ttl=255 time=5 ms</span><br><span class="line">  Reply from 10.2.2.2: bytes=56 Sequence=3 ttl=255 time=5 ms </span><br><span class="line">  Reply from 10.2.2.2: bytes=56 Sequence=4 ttl=255 time=14 ms</span><br><span class="line">  Reply from 10.2.2.2: bytes=56 Sequence=5 ttl=255 time=5 ms</span><br><span class="line">--- 10.2.2.2 ping statistics ---</span><br><span class="line">  5 packet(s) transmitted </span><br><span class="line">  5 packet(s) received</span><br><span class="line">  0.00% packet loss</span><br><span class="line">  round-trip min/avg/max = 5/53/240 ms</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>分别在Switch1、Switch2上配置业务接入点</p>
+<ul>
+<li><p>配置Switch1。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Switch1] bridge-domain 10</span><br><span class="line">[Switch1-bd10] quit</span><br><span class="line">[Switch1] interface gigabitethernet 0/0/2</span><br><span class="line">[Switch1-GigabitEthernet0/0/2] port link-type trunk</span><br><span class="line">[Switch1-GigabitEthernet0/0/2] quit</span><br><span class="line">[Switch1] interface gigabitethernet 0/0/2.1 mode l2</span><br><span class="line">[Switch1-GigabitEthernet0/0/2.1] encapsulation dot1q vid 10</span><br><span class="line">[Switch1-GigabitEthernet0/0/2.1] bridge-domain 10</span><br><span class="line">[Switch1-GigabitEthernet0/0/2.1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置Switch2。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Switch2] bridge-domain 10</span><br><span class="line">[Switch2-bd10] quit</span><br><span class="line">[Switch2] interface gigabitethernet 0/0/2</span><br><span class="line">[Switch2-GigabitEthernet0/0/2] port link-type trunk</span><br><span class="line">[Switch2-GigabitEthernet0/0/2] quit</span><br><span class="line">[Switch2] interface gigabitethernet 0/0/2.1 mode l2</span><br><span class="line">[Switch2-GigabitEthernet0/0/2.1] encapsulation dot1q vid 10</span><br><span class="line">[Switch2-GigabitEthernet0/0/2.1] bridge-domain 10</span><br><span class="line">[Switch2-GigabitEthernet0/0/2.1] quit</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>分别在Switch1、Switch2上配置VXLAN隧道</p>
+<ul>
+<li><p>配置Switch1。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Switch1] bridge-domain 10</span><br><span class="line">[Switch1-bd10] vxlan vni 2010</span><br><span class="line">[Switch1-bd10] quit</span><br><span class="line">[Switch1] interface nve 1</span><br><span class="line">[Switch1-Nve1] source 10.1.1.2</span><br><span class="line">[Switch1-Nve1] vni 2010 head-end peer-list 10.2.2.2</span><br><span class="line">[Switch1-Nve1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置Switch2。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Switch2] bridge-domain 10</span><br><span class="line">[Switch2-bd10] vxlan vni 2010</span><br><span class="line">[Switch2-bd10] quit</span><br><span class="line">[Switch2] interface nve 1</span><br><span class="line">[Switch2-Nve1] source 10.2.2.2</span><br><span class="line">[Switch2-Nve1] vni 2010 head-end peer-list 10.1.1.2</span><br><span class="line">[Switch2-Nve1] quit</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>验证配置结果</p>
+</li>
+</ol>
+<ul>
+<li><p>上述配置成功后，在Switch1、Switch2上执行display vxlan vni命令可查看到VNI的状态是Up；执行display vxlan tunnel命令可查看到VXLAN隧道的信息。以Switch1显示为例。</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">[Switch1] display vxlan vni</span><br><span class="line"> VNI               BD-ID             State                                      </span><br><span class="line"> -----------------------------------------                                      </span><br><span class="line"> 2010              10                up                                         </span><br><span class="line"> -----------------------------------------                                      </span><br><span class="line"> Number of vxlan vni bound to BD is : 1   </span><br><span class="line">[Switch1] display vxlan tunnel</span><br><span class="line"> Tunnel ID       Source              Destination         State     Type         </span><br><span class="line"> ----------------------------------------------------------------------------   </span><br><span class="line"> 4026531841      10.1.1.2             10.2.2.2             up        static     </span><br><span class="line">----------------------------------------------------------------------------    </span><br><span class="line"> Number of vxlan tunnel : 1</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置完成后，同网段用户通过VXLAN隧道可以互通。以服务器1上的VM1 ping服务器2上的VM1的显示为例。</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\VM1&gt;ping 192.168.10.2</span><br><span class="line"></span><br><span class="line">Pinging 192.168.10.2 with 32 bytes of data:               </span><br><span class="line">Reply from 192.168.10.2: bytes=32 time=1ms TTL=126        </span><br><span class="line">Reply from 192.168.10.2: bytes=32 time=1ms TTL=126        </span><br><span class="line">Reply from 192.168.10.2: bytes=32 time=1ms TTL=126        </span><br><span class="line">Reply from 192.168.10.2: bytes=32 time=1ms TTL=126        </span><br><span class="line"></span><br><span class="line">Ping statistics for 192.168.10.2:                         </span><br><span class="line">    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),  </span><br><span class="line">Approximate round trip times in milli-seconds:            </span><br><span class="line">    Minimum = 1ms, Maximum = 1ms, Average = 1ms</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<h4 id="配置文件"><a href="#配置文件" class="headerlink" title="配置文件"></a>配置文件</h4><blockquote>
+<p>公子青注<br>原文此处有误，在此省略该部分。</p>
+</blockquote>
+<h3 id="7-2-通过VXLAN在园区上构建虚拟数据中心网络（三层互通）示例"><a href="#7-2-通过VXLAN在园区上构建虚拟数据中心网络（三层互通）示例" class="headerlink" title="7.2 通过VXLAN在园区上构建虚拟数据中心网络（三层互通）示例"></a>7.2 通过VXLAN在园区上构建虚拟数据中心网络（三层互通）示例</h3><h4 id="组网需求-1"><a href="#组网需求-1" class="headerlink" title="组网需求"></a>组网需求</h4><p>企业已经建成比较成熟的园区网络，但是没有专用的数据中心网络，所有的服务器分布在不同的部门，并且不具备集中放置的条件。现在用户希望在已有园区网络上构建一个虚拟的数据中心网络，需求如下：</p>
+<ul>
+<li>将散落在不同部门的服务器构建成一个虚拟网络，实现资源整合和业务灵活部署。</li>
+<li>各服务器上部署着大量的VM，不同业务的VM之间需要实现三层互通。</li>
+</ul>
+<p>如下图所示，企业在不同的数据中心都拥有自己的VM，Server1上的VM1属于VLAN 10，Server2上的VM1属于VLAN 20，现需要通过VXLAN隧道实现不同业务的VM之间的三层互通。</p>
+<p><img src="/images/4.21.png" alt=""></p>
+<blockquote>
+<p>说明：<br>本举例中交换机以S5720HI为例</p>
+</blockquote>
+<h4 id="数据准备-1"><a href="#数据准备-1" class="headerlink" title="数据准备"></a>数据准备</h4><table>
+<thead>
+<tr>
+<th>设备</th>
+<th>VXLAN隧道</th>
+<th>BD</th>
+<th>VNI</th>
+<th>Source IP</th>
+<th>Peer IP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Switch1</td>
+<td>Switch1—&gt;Switch3</td>
+<td>10</td>
+<td>2010</td>
+<td>10.1.1.2</td>
+<td>10.3.3.2</td>
+</tr>
+<tr>
+<td>Switch2</td>
+<td>Switch2—&gt;Switch3</td>
+<td>20</td>
+<td>2020</td>
+<td>10.2.2.2</td>
+<td>10.3.3.2</td>
+</tr>
+<tr>
+<td>Switch3</td>
+<td>Switch3—&gt;Switch1</td>
+<td>10</td>
+<td>2010</td>
+<td>10.3.3.2</td>
+<td>10.1.1.2</td>
+</tr>
+<tr>
+<td>Switch3</td>
+<td>Switch3—&gt;Switch2</td>
+<td>20</td>
+<td>2020</td>
+<td>10.3.3.2</td>
+<td>10.2.2.2</td>
+</tr>
+</tbody>
+</table>
+<h4 id="配置思路-1"><a href="#配置思路-1" class="headerlink" title="配置思路"></a>配置思路</h4><p>采用如下思路配置不同网段用户通过VXLAN网关互通：</p>
+<ol>
+<li>分别在Switch1、Switch2、Switch3上配置路由协议，保证网络三层互通。</li>
+<li>分别在Switch1、Switch2上配置VXLAN接入业务部署方式。</li>
+<li>分别在Switch1、Switch2、Switch3上配置VXLAN隧道。</li>
+<li>在Switch3上配置VXLAN三层网关。</li>
+</ol>
+<blockquote>
+<p>说明：<br>园区网络的三层互通是构建虚拟数据中心网络的基础条件，现网中，如果园区网络已经实现三层网络的互通，那么该举例中的步骤1可以省略。</p>
+</blockquote>
+<h4 id="操作步骤-10"><a href="#操作步骤-10" class="headerlink" title="操作步骤"></a>操作步骤</h4><ol>
+<li><p>配置路由协议</p>
+<ul>
+<li><p>配置Switch1各接口IP地址。Switch2和Switch3的配置与Switch1类似，这里不再赘述。配置OSPF时，注意需要发布设备上的32位Loopback接口地址。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">&lt;HUAWEI&gt; system-view</span><br><span class="line">[HUAWEI] sysname Switch1</span><br><span class="line">[Switch1] interface loopback 1</span><br><span class="line">[Switch1-LoopBack1] ip address 10.1.1.2 32</span><br><span class="line">[Switch1-LoopBack1] quit</span><br><span class="line">[Switch1] interface gigabitethernet 0/0/1</span><br><span class="line">[Switch1-GigabitEthernet0/0/1] undo portswitch</span><br><span class="line">[Switch1-GigabitEthernet0/0/1] ip address 192.168.2.1 24</span><br><span class="line">[Switch1-GigabitEthernet0/0/1] quit</span><br><span class="line">[Switch1] ospf</span><br><span class="line">[Switch1-ospf-1] area 0</span><br><span class="line">[Switch1-ospf-1-area-0.0.0.0] network 10.1.1.2 0.0.0.0</span><br><span class="line">[Switch1-ospf-1-area-0.0.0.0] network 192.168.2.0 0.0.0.255</span><br><span class="line">[Switch1-ospf-1-area-0.0.0.0] quit</span><br><span class="line">[Switch1-ospf-1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>OSPF成功配置后，Switch之间可通过OSPF协议发现对方的Loopback接口的IP地址，并能互相ping通。以Switch1 ping Switch2的显示为例。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">[Switch1] ping 10.2.2.2</span><br><span class="line">  PING 10.2.2.2: 56  data bytes, press CTRL_C to break           </span><br><span class="line">    Reply from 10.2.2.2: bytes=56 Sequence=1 ttl=255 time=240 ms </span><br><span class="line">    Reply from 10.2.2.2: bytes=56 Sequence=2 ttl=255 time=5 ms   </span><br><span class="line">    Reply from 10.2.2.2: bytes=56 Sequence=3 ttl=255 time=5 ms   </span><br><span class="line">    Reply from 10.2.2.2: bytes=56 Sequence=4 ttl=255 time=14 ms  </span><br><span class="line">    Reply from 10.2.2.2: bytes=56 Sequence=5 ttl=255 time=5 ms   </span><br><span class="line"> --- 10.2.2.2 ping statistics ---                                </span><br><span class="line">    5 packet(s) transmitted                                     </span><br><span class="line">    5 packet(s) received                                        </span><br><span class="line">    0.00% packet loss                                           </span><br><span class="line">    round-trip min/avg/max = 5/53/240 ms</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>分别在Switch1、Switch2上配置业务接入点</p>
+<ul>
+<li><p>配置Switch1。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Switch1] bridge-domain 10</span><br><span class="line">[Switch1-bd10] quit</span><br><span class="line">[Switch1] interface gigabitethernet 0/0/2</span><br><span class="line">[Switch1-GigabitEthernet0/0/2] port link-type trunk</span><br><span class="line">[Switch1-GigabitEthernet0/0/2] quit</span><br><span class="line">[Switch1] interface gigabitethernet 0/0/2.1 mode l2</span><br><span class="line">[Switch1-GigabitEthernet0/0/2.1] encapsulation dot1q vid 10</span><br><span class="line">[Switch1-GigabitEthernet0/0/2.1] bridge-domain 10</span><br><span class="line">[Switch1-GigabitEthernet0/0/2.1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置Switch2。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Switch2] bridge-domain 20</span><br><span class="line">[Switch2-bd20] quit</span><br><span class="line">[Switch2] interface gigabitethernet 0/0/2</span><br><span class="line">[Switch2-GigabitEthernet0/0/2] port link-type trunk</span><br><span class="line">[Switch2-GigabitEthernet0/0/2] quit</span><br><span class="line">[Switch2] interface gigabitethernet 0/0/2.1 mode l2</span><br><span class="line">[Switch2-GigabitEthernet0/0/2.1] encapsulation dot1q vid 20</span><br><span class="line">[Switch2-GigabitEthernet0/0/2.1] bridge-domain 20</span><br><span class="line">[Switch2-GigabitEthernet0/0/2.1] quit</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>分别在Switch1、Switch2、Switch3上配置VXLAN隧道</p>
+<ul>
+<li><p>配置Switch1。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Switch1] bridge-domain 10</span><br><span class="line">[Switch1-bd10] vxlan vni 2010</span><br><span class="line">[Switch1-bd10] quit</span><br><span class="line">[Switch1] interface nve 1</span><br><span class="line">[Switch1-Nve1] source 10.1.1.2</span><br><span class="line">[Switch1-Nve1] vni 2010 head-end peer-list 10.3.3.2</span><br><span class="line">[Switch1-Nve1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置Switch2。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Switch2] bridge-domain 20</span><br><span class="line">[Switch2-bd20] vxlan vni 2020</span><br><span class="line">[Switch2-bd20] quit</span><br><span class="line">[Switch2] interface nve 1</span><br><span class="line">[Switch2-Nve1] source 10.2.2.2</span><br><span class="line">[Switch2-Nve1] vni 2020 head-end peer-list 10.3.3.2</span><br><span class="line">[Switch2-Nve1] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置Switch3。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">[Switch3] bridge-domain 10</span><br><span class="line">[Switch3-bd10] vxlan vni 2010</span><br><span class="line">[Switch3-bd10] quit</span><br><span class="line">[Switch3] interface nve 1</span><br><span class="line">[Switch3-Nve1] source 10.3.3.2</span><br><span class="line">[Switch3-Nve1] vni 2010 head-end peer-list 10.1.1.2</span><br><span class="line">[Switch3-Nve1] quit</span><br><span class="line">[Switch3] bridge-domain 20</span><br><span class="line">[Switch3-bd20] vxlan vni 2020</span><br><span class="line">[Switch3-bd20] quit</span><br><span class="line">[Switch3] interface nve 1</span><br><span class="line">[Switch3-Nve1] source 10.3.3.2</span><br><span class="line">[Switch3-Nve1] vni 2020 head-end peer-list 10.2.2.2</span><br><span class="line">[Switch3-Nve1] quit</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>在Switch3上配置VXLAN三层网关</p>
+ <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[Switch3] interface vbdif 10</span><br><span class="line">[Switch3-Vbdif10] ip address 192.168.10.10 24</span><br><span class="line">[Switch3-Vbdif10] quit</span><br><span class="line">[Switch3] interface vbdif 20</span><br><span class="line">[Switch3-Vbdif20] ip address 192.168.20.10 24</span><br><span class="line">[Switch3-Vbdif20] quit</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>验证配置结果</p>
+</li>
+</ol>
+<ul>
+<li><p>上述配置成功后，在Switch1、Switch2上执行命令display vxlan vni可查看到VNI的状态是Up；执行命令display vxlan tunnel可查看到VXLAN隧道的信息。以Switch3显示为例。</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">[Switch3] display vxlan vni</span><br><span class="line"> VNI               BD-ID             State                                      </span><br><span class="line"> -----------------------------------------                                      </span><br><span class="line"> 2010              10                up                                         </span><br><span class="line"> 2020              20                up                                         </span><br><span class="line"> -----------------------------------------                                      </span><br><span class="line"> Number of vxlan vni bound to BD is : 2    </span><br><span class="line">[Switch3] display vxlan tunnel</span><br><span class="line"> Tunnel ID       Source              Destination         State     Type         </span><br><span class="line"> ----------------------------------------------------------------------------   </span><br><span class="line"> 4026531842      10.3.3.2             10.1.1.2             up        static     </span><br><span class="line"> 4026531841      10.3.3.2             10.2.2.2             up        static     </span><br><span class="line"> ----------------------------------------------------------------------------   </span><br><span class="line"> Number of vxlan tunnel : 2</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置完成后，不同网段用户通过VXLAN网关可以互通。以服务器1上的VM1 ping服务器2上的VM1的显示为例。</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\VM1&gt;ping 192.168.20.1</span><br><span class="line">Pinging 192.168.20.1 with 32 bytes of data:               </span><br><span class="line">Reply from 192.168.20.1: bytes=32 time=1ms TTL=126        </span><br><span class="line">Reply from 192.168.20.1: bytes=32 time=1ms TTL=126        </span><br><span class="line">Reply from 192.168.20.1: bytes=32 time=1ms TTL=126        </span><br><span class="line">Reply from 192.168.20.1: bytes=32 time=1ms TTL=126        </span><br><span class="line">Ping statistics for 192.168.20.1:                         </span><br><span class="line">    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),  </span><br><span class="line">Approximate round trip times in milli-seconds:            </span><br><span class="line">    Minimum = 1ms, Maximum = 1ms, Average = 1ms</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<h4 id="配置文件-1"><a href="#配置文件-1" class="headerlink" title="配置文件"></a>配置文件</h4><ul>
+<li><p>Switch1的配置文件</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span></span><br><span class="line">sysname Switch1</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">bridge-domain 10</span><br><span class="line"> vxlan vni 2010</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/1</span><br><span class="line"> undo portswitch</span><br><span class="line"> ip address 192.168.2.1 255.255.255.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/2</span><br><span class="line"> port link-type trunk</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/2.1 mode l2</span><br><span class="line"> encapsulation dot1q vid 10</span><br><span class="line"> bridge-domain 10</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface LoopBack1</span><br><span class="line"> ip address 10.1.1.2 255.255.255.255</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface Nve1</span><br><span class="line"> source 10.1.1.2</span><br><span class="line"> vni 2010 head-end peer-list 10.3.3.2</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">ospf 1</span><br><span class="line"> area 0.0.0.0</span><br><span class="line">  network 10.1.1.2 0.0.0.0</span><br><span class="line">  network 192.168.2.0 0.0.0.255</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">return</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Switch2的配置文件</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span></span><br><span class="line">sysname Switch2</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">bridge-domain 20</span><br><span class="line"> vxlan vni 2020</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/1</span><br><span class="line"> undo portswitch</span><br><span class="line"> ip address 192.168.3.1 255.255.255.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/2</span><br><span class="line"> port link-type trunk</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/2.1 mode l2</span><br><span class="line"> encapsulation dot1q vid 20</span><br><span class="line"> bridge-domain 20</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface LoopBack1</span><br><span class="line"> ip address 10.2.2.2 255.255.255.255</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface Nve1</span><br><span class="line"> source 10.2.2.2</span><br><span class="line"> vni 2020 head-end peer-list 10.3.3.2</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">ospf 1</span><br><span class="line"> area 0.0.0.0</span><br><span class="line">  network 10.2.2.2 0.0.0.0</span><br><span class="line">  network 192.168.3.0 0.0.0.255</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">return</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Switch3的配置文件</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span></span><br><span class="line">sysname Switch3</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">bridge-domain 10</span><br><span class="line"> vxlan vni 2010</span><br><span class="line">bridge-domain 20</span><br><span class="line"> vxlan vni 2020</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface Vbdif10</span><br><span class="line"> ip address 192.168.10.10 255.255.255.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface Vbdif20</span><br><span class="line"> ip address 192.168.20.10 255.255.255.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/1</span><br><span class="line"> undo portswitch</span><br><span class="line"> ip address 192.168.2.2 255.255.255.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface GigabitEthernet0/0/2</span><br><span class="line"> undo portswitch</span><br><span class="line"> ip address 192.168.3.2 255.255.255.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface LoopBack1</span><br><span class="line"> ip address 10.3.3.2 255.255.255.255</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">interface Nve1</span><br><span class="line"> source 10.3.3.2</span><br><span class="line"> vni 2010 head-end peer-list 10.1.1.2</span><br><span class="line"> vni 2020 head-end peer-list 10.2.2.2</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">ospf 1</span><br><span class="line"> area 0.0.0.0</span><br><span class="line">  network 10.3.3.2 0.0.0.0</span><br><span class="line">  network 192.168.2.0 0.0.0.255</span><br><span class="line">  network 192.168.3.0 0.0.0.255</span><br><span class="line"><span class="meta">#</span></span><br><span class="line">return</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<h2 id="8-参考协议和标准"><a href="#8-参考协议和标准" class="headerlink" title="8 参考协议和标准"></a>8 参考协议和标准</h2><p>本特性的参考资料清单如下：</p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>描述</th>
+<th>协议顺从性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RFC 7348</td>
+<td>Virtual eXtensible Local Area Network (VXLAN): A Framework for Overlaying Virtualized Layer 2 Networks over Layer 3 Networks</td>
+<td>部分顺从：<br>当前只支持通过头端复制方式完成BUM报文的广播，不支持组播复制方式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-附录"><a href="#9-附录" class="headerlink" title="9 附录"></a>9 附录</h2><h3 id="9-1-服务器虚拟化"><a href="#9-1-服务器虚拟化" class="headerlink" title="9.1 服务器虚拟化"></a>9.1 服务器虚拟化</h3><p>服务器虚拟化是将一台物理服务器虚拟成多台逻辑服务器，即VM（Virtual Machine）。如下图所示，一台物理服务器虚拟为多台逻辑服务器VM。</p>
+<p><img src="/images/4.22.png" alt=""></p>
+<ul>
+<li><p>VM<br>  虚拟机，每个VM拥有自己的操作系统和应用软件的同时也具有独立的MAC地址和IP地址，并且每个VM都可以独立运行。</p>
+</li>
+<li><p>vSwitch<br>  物理服务器的虚拟交换机，提供虚拟机的二层通信、隔离、QoS的能力。</p>
+</li>
+</ul>
+<p>服务器虚拟化的优点：</p>
+<ul>
+<li>通过服务器虚拟化可以有效地提高服务器的利用率。</li>
+<li>按需提供服务和资源。</li>
+<li>降低能源消耗。</li>
+<li>降低客户的运维成本。</li>
+</ul>
+<h3 id="9-2-大二层网络"><a href="#9-2-大二层网络" class="headerlink" title="9.2 大二层网络"></a>9.2 大二层网络</h3><p>为了实现业务的灵活变更，虚拟机动态迁移已经成为了一个常态性的业务。虚拟机动态迁移是指在保证虚拟机正常运行的同时，将虚拟机从一个物理服务器移动到另一个物理服务器的过程，该过程对于最终用户来说是无感知的，使得管理员在不影响用户正常使用的情况下灵活调配服务器资源或者对物理服务器进行维修和升级。虚拟机动态迁移的关键是要保证在迁移时，虚拟机上的业务不会中断，这就要求虚拟机的IP地址、MAC地址等参数保持不变，所以虚拟机的迁移只能在同一个二层域内进行，而不能跨二层域迁移，如下图所示。</p>
+<p><img src="/images/4.23.png" alt=""></p>
+<p>传统数据中心网络架构中二层网络部分为了提高可靠性，采用冗余设备和冗余链路，在虚拟机迁移过程中会不可避免地产生物理环路。</p>
+<p>为了避免物理环路过程中产生的广播风暴，需要采用STP等破环协议进行破环，阻塞冗余链路。由于STP性能的限制，采用STP协议进行破环的二层网络通常不超过50个网络节点，导致虚拟机动态迁移只能在一个较小的局部范围内进行，应用受到极大限制。</p>
+<p>为了实现虚拟机的大范围甚至跨地域的动态迁移，就要求将虚拟机动态迁移可能涉及的服务器都纳入同一个二层网络，形成一个更大范围的二层网络，这样才能实现虚拟机的大范围无障碍的迁移，这种二层网络称为大二层网络。</p>
+<p>常见的实现大二层网络技术有：</p>
+<ul>
+<li>网络设备虚拟化技术。</li>
+<li>TRILL技术。</li>
+<li>VXLAN技术。</li>
+<li>EVN技术。</li>
+</ul>
+<p>然而，通过网络设备虚拟化技术、TRILL、EVN技术构建物理上的大二层网络，可以将虚拟机迁移的范围扩大。但是，构建物理上的大二层，难免需要对原来的网络做较大的改动，并且大二层网络的范围依然会受到种种条件的限制，然而VXLAN技术能够很好地解决上述问题。</p>
+<p>如下图所示，在大二层网络中虚拟机动态迁移可以实现大范围无障碍的迁移。</p>
+<p><img src="/images/4.24.png" alt=""></p>
+<blockquote>
+<h2 id="公子青注："><a href="#公子青注：" class="headerlink" title="公子青注："></a>公子青注：</h2><p>至此本文断断续续写了半个月（其实是抄啦）终于结束，完了。感谢阁下拖拽到文末。 虽然本文内容是转载，但是基本手工迁移，并尽量保持原格式。</p>
+</blockquote>
+</div><div class="article-meta" style="max-width:800px"><div class="tags"><i class="icon icon-tag"></i><ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/huawei/">huawei</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/overlay/">overlay</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/sdn/">sdn</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/vxlan/">vxlan</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/网络虚拟化/">网络虚拟化</a><span class="tag-list-count">1</span></li></ul></div></div><div class="article-comment" style="max-width:800px"><div class="ds-thread" id="ds-thread" data-thread-key="cjf2ova1j000swtpvubw6ik8z" data-title="vxlan--overlay 网络虚拟化技术" data-url="https://zzongbh.github.io/6e71bce2/" site-name="ueibo"></div><script>var siteName = document.getElementById('ds-thread').getAttribute('site-name');
+var duoshuoQuery = {short_name: siteName};
+(function() {
+  var ds = document.createElement('script');
+  ds.type = 'text/javascript';ds.async = true;
+  ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+  ds.charset = 'UTF-8';
+  (document.getElementsByTagName('head')[0] 
+  || document.getElementsByTagName('body')[0]).appendChild(ds);
+})();</script></div><ul class="navication"><li class="home"><a href="/"><i class="icon icon-home"></i></a></li><li><a href="/55317a93/"><i class="icon icon-arror-right"></i></a></li></ul><div class="page-footer"><div class="top"><ul class="social"><li><a href="zzongbh#gmail.com" title="email" target="_blank"><i class="icon icon-email"></i></a></li></ul></div><div class="bottom"><p class="copyright">© 2018 高脚猪<br><small>POWER BY <a href="https://hexo.io" target="_blank">HEXO</a></small><small>, THEME BY <a href="https://github.com/BoizZ/hexo-theme-laughing" target="_blank">LAUGHING</a></small></p></div></div></div><script>var wrap = document.getElementById('wrap');
+window.onload = function () {
+  wrap.className += ' done';
+}</script></body></html>
